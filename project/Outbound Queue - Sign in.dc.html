@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#F4F7F8; }
+  body { font-family:'IBM Plex Sans', system-ui, sans-serif; color:#16232A; -webkit-font-smoothing:antialiased; }
+  * { box-sizing:border-box; }
+  a { color:#0E7C86; text-decoration:none; }
+  a:hover { color:#0A5C64; text-decoration:underline; }
+  button { font-family:inherit; cursor:pointer; }
+  input { font-family:inherit; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:{{ pageJustify }}; padding:{{ pagePad }}">
+
+  <div style="width:100%; max-width:420px">
+
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:22px">
+      <img src="./assets/umch-logo.png" alt="United Healthcare" style="height:26px; width:auto; display:block" />
+      <span style="font-size:14px; font-weight:600; color:#5D7178">Outbound queue</span>
+    </div>
+
+    <sc-if value="{{ onSignIn }}" hint-placeholder-val="{{ true }}">
+      <div style="background:#fff; border:1px solid #E2E9EB; border-radius:12px; padding:{{ cardPad }}">
+        <h1 style="margin:0; font-size:23px; font-weight:600; letter-spacing:-.015em">{{ greeting }}</h1>
+        <div style="font-size:13.5px; color:#5D7178; margin-top:7px; line-height:1.55">{{ greetingNote }}</div>
+
+        <div style="display:flex; flex-direction:column; gap:16px; margin-top:22px">
+          <sc-if value="{{ askId }}" hint-placeholder-val="{{ true }}">
+            <label style="display:flex; flex-direction:column; gap:7px">
+              <span style="font-size:14px; font-weight:600; color:#2C3B42">Employee ID</span>
+              <input value="{{ fId }}" onChange="{{ setId }}" onKeyDown="{{ onKey }}" placeholder="CC-002" autoComplete="username" style="width:100%; border:1.5px solid {{ idBorder }}; border-radius:8px; padding:15px; font-size:22px; font-family:'IBM Plex Mono',monospace; letter-spacing:.02em; text-transform:uppercase; color:#16232A; background:#fff; min-height:56px" />
+            </label>
+          </sc-if>
+
+          <sc-if value="{{ knownDevice }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#F4F7F8; border:1px solid #E2E9EB; border-radius:9px; padding:14px 16px; display:flex; align-items:center; gap:12px">
+              <span style="width:34px; height:34px; border-radius:50%; background:#0E7C86; color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:0 0 auto">{{ deviceInitials }}</span>
+              <div style="min-width:0">
+                <div style="font-size:15px; font-weight:600">{{ deviceName }}</div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#7A8B91; margin-top:2px">{{ deviceId }}</div>
+              </div>
+              <button onClick="{{ notMe }}" style="margin-left:auto; background:transparent; border:none; padding:0; color:#0A5C64; font-size:13px; font-weight:600">Not me</button>
+            </div>
+          </sc-if>
+
+          <label style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-size:14px; font-weight:600; color:#2C3B42">Password</span>
+            <div style="display:flex; gap:8px">
+              <input type="{{ pwType }}" value="{{ fPw }}" onChange="{{ setPw }}" onKeyDown="{{ onKey }}" placeholder="••••••••" autoComplete="current-password" style="flex:1 1 auto; min-width:0; border:1.5px solid {{ pwBorder }}; border-radius:8px; padding:15px; font-size:18px; font-family:'IBM Plex Mono',monospace; color:#16232A; background:#fff; min-height:56px" />
+              <button onClick="{{ togglePw }}" style="flex:0 0 auto; background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:8px; padding:0 15px; font-size:13.5px; font-weight:600; min-height:56px">{{ pwToggleLabel }}</button>
+            </div>
+          </label>
+
+          <sc-if value="{{ hasError }}" hint-placeholder-val="{{ false }}">
+            <div style="background:#FDF5F4; border:1px solid #F0CFCA; border-radius:8px; padding:13px 15px; font-size:13.5px; color:#9C3B31; font-weight:500; line-height:1.55">{{ error }}</div>
+          </sc-if>
+
+          <button onClick="{{ toggleStay }}" style="display:flex; align-items:center; gap:11px; background:transparent; border:none; padding:0; text-align:left">
+            <span style="width:22px; height:22px; border-radius:5px; border:1.5px solid {{ stayBorder }}; background:{{ stayBg }}; color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:0 0 auto">{{ stayMark }}</span>
+            <span style="font-size:14px; color:#2C3B42; font-weight:500">Stay signed in on this {{ deviceWord }}</span>
+          </button>
+
+          <button onClick="{{ submit }}" style="background:{{ signInBg }}; color:#fff; border:none; border-radius:8px; padding:16px; font-size:16.5px; font-weight:700; min-height:56px; opacity:{{ signInOpacity }}">{{ signInLabel }}</button>
+        </div>
+
+        <div style="border-top:1px solid #EDF2F3; margin-top:20px; padding-top:16px; font-size:13px; color:#7A8B91; line-height:1.6">Forgotten it? A superadmin resets it for you — there is no email link. Ask your team lead.</div>
+      </div>
+
+      <div style="font-size:12.5px; color:#7A8B91; margin-top:16px; line-height:1.6; text-align:center">{{ demoHint }}</div>
+    </sc-if>
+
+    <sc-if value="{{ onChange }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#fff; border:1px solid #E2E9EB; border-radius:12px; padding:{{ cardPad }}">
+        <div style="display:inline-flex; align-items:center; gap:7px; background:#FDF9EE; border:1px solid #EBDCB4; border-radius:16px; padding:5px 11px">
+          <span style="width:7px; height:7px; border-radius:50%; background:#9A6206; display:block"></span>
+          <span style="font-size:12px; font-weight:600; color:#7A4E06">First time signing in</span>
+        </div>
+        <h1 style="margin:14px 0 0; font-size:23px; font-weight:600; letter-spacing:-.015em">Pick your own password</h1>
+        <div style="font-size:13.5px; color:#5D7178; margin-top:7px; line-height:1.55">The one you were given stops working after this. Nobody can read the new one back — not even a superadmin.</div>
+
+        <div style="display:flex; flex-direction:column; gap:16px; margin-top:22px">
+          <label style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-size:14px; font-weight:600; color:#2C3B42">New password</span>
+            <input type="{{ pwType }}" value="{{ fNew }}" onChange="{{ setNew }}" onKeyDown="{{ onKeyChange }}" placeholder="At least 8 characters" autoComplete="new-password" style="width:100%; border:1.5px solid {{ newBorder }}; border-radius:8px; padding:15px; font-size:18px; font-family:'IBM Plex Mono',monospace; color:#16232A; background:#fff; min-height:56px" />
+            <div style="display:flex; align-items:center; gap:9px; margin-top:2px">
+              <div style="flex:1 1 auto; height:5px; border-radius:3px; background:#EDF2F3; overflow:hidden">
+                <div style="height:100%; width:{{ strengthW }}; background:{{ strengthColor }}"></div>
+              </div>
+              <span style="font-size:12.5px; font-weight:600; color:{{ strengthColor }}; flex:0 0 auto">{{ strengthLabel }}</span>
+            </div>
+          </label>
+
+          <label style="display:flex; flex-direction:column; gap:7px">
+            <span style="font-size:14px; font-weight:600; color:#2C3B42">Type it again</span>
+            <input type="{{ pwType }}" value="{{ fRepeat }}" onChange="{{ setRepeat }}" onKeyDown="{{ onKeyChange }}" placeholder="Same again" autoComplete="new-password" style="width:100%; border:1.5px solid {{ repeatBorder }}; border-radius:8px; padding:15px; font-size:18px; font-family:'IBM Plex Mono',monospace; color:#16232A; background:#fff; min-height:56px" />
+          </label>
+
+          <button onClick="{{ togglePw }}" style="align-self:flex-start; background:transparent; border:none; padding:0; color:#0A5C64; font-size:13.5px; font-weight:600">{{ pwToggleLabel }} both</button>
+
+          <button onClick="{{ saveNew }}" disabled="{{ changeBlocked }}" style="background:{{ changeBg }}; color:#fff; border:none; border-radius:8px; padding:16px; font-size:16.5px; font-weight:700; min-height:56px; opacity:{{ changeOpacity }}">Save it and start work</button>
+          <div style="font-size:13.5px; color:{{ changeNoteColor }}; line-height:1.55">{{ changeNote }}</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onDone }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#fff; border:1px solid #E2E9EB; border-radius:12px; padding:{{ cardPad }}">
+        <div style="width:44px; height:44px; border-radius:50%; background:#E9F6F1; border:1px solid #B7E0D0; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700; color:#125C3D">✓</div>
+        <h1 style="margin:16px 0 0; font-size:23px; font-weight:600; letter-spacing:-.015em">{{ doneTitle }}</h1>
+        <div style="font-size:13.5px; color:#5D7178; margin-top:8px; line-height:1.6">{{ doneNote }}</div>
+        <div style="background:#F4F7F8; border:1px solid #E2E9EB; border-radius:9px; padding:14px 16px; margin-top:18px; font-size:13.5px; color:#2C3B42; line-height:1.6">{{ doneNext }}</div>
+        <button onClick="{{ signOut }}" style="background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:8px; padding:14px 18px; font-size:14.5px; font-weight:600; min-height:52px; margin-top:18px; width:100%">Sign out and start over</button>
+      </div>
+    </sc-if>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:560,&quot;height&quot;:820},&quot;rememberDevice&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behaviour&quot;}}">
+const PEOPLE = {
+  'CC-002':{ name:'Nusrat Jahan', role:'Call centre agent', pw:'queue123', mustSet:false, dest:'the call queue — your first lead is already waiting' },
+  'CC-009':{ name:'Farhana Islam', role:'Call centre agent', pw:'Kf7-r2mq', mustSet:true, dest:'the call queue — your first lead is already waiting' },
+  'BD-007':{ name:'Ishrat Sultana', role:'Business development', pw:'queue123', mustSet:false, dest:'your leads and their outcomes' },
+  'OP-001':{ name:'Shahriar Kabir', role:'Team lead', pw:'queue123', mustSet:false, dest:'the floor view' },
+  'IT-001':{ name:'Sabbir Chowdhury', role:'Superadmin', pw:'queue123', mustSet:false, dest:'people & access' }
+};
+
+class Component extends DCLogic {
+  state = {
+    stage:'signin', id:'', pw:'', show:false, stay:true, error:'',
+    remembered:'CC-002', newPw:'', repeat:'', narrow:false, who:null, busy:false
+  };
+
+  componentDidMount() {
+    const measure = () => {
+      const w = document.documentElement.clientWidth || window.innerWidth || 0;
+      if (!w) return;
+      const n = w < 560;
+      if (n !== this.state.narrow) this.setState({ narrow:n });
+    };
+    this._fit = measure;
+    measure();
+    requestAnimationFrame(measure);
+    this._late = setTimeout(measure, 300);
+    if (window.ResizeObserver) {
+      this._ro = new ResizeObserver(measure);
+      this._ro.observe(document.documentElement);
+    }
+    window.addEventListener('resize', measure);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._fit);
+    if (this._ro) this._ro.disconnect();
+    clearTimeout(this._late);
+    clearTimeout(this._b);
+  }
+
+  strength(v) {
+    let n = 0;
+    if (v.length >= 8) n++;
+    if (v.length >= 12) n++;
+    if (/[A-Z]/.test(v) && /[a-z]/.test(v)) n++;
+    if (/\d/.test(v) || /[^A-Za-z0-9]/.test(v)) n++;
+    return Math.min(4, n);
+  }
+
+  attempt() {
+    const s = this.state;
+    const key = (s.remembered || s.id).trim().toUpperCase();
+    const p = PEOPLE[key];
+    if (!key) return this.setState({ error:'Type your employee ID.' });
+    if (!p) return this.setState({ error:'No account with that employee ID. Check it with your team lead.' });
+    if (!s.pw) return this.setState({ error:'Type your password.' });
+    if (s.pw !== p.pw) return this.setState({ error:'That password does not match. A superadmin can reset it for you.' });
+    this.setState({ busy:true, error:'' });
+    this._b = setTimeout(() => this.setState({
+      busy:false, who:key, pw:'',
+      stage:p.mustSet ? 'change' : 'done',
+      remembered:this.state.stay ? key : null
+    }), 420);
+  }
+
+  renderVals() {
+    const s = this.state, nw = s.narrow;
+    const rememberDevice = this.props.rememberDevice ?? true;
+    const remembered = rememberDevice ? s.remembered : null;
+    const rp = remembered ? PEOPLE[remembered] : null;
+    const who = s.who ? PEOPLE[s.who] : null;
+    const st = this.strength(s.newPw);
+    const strengthNames = ['Too short', 'Weak', 'Fine', 'Good', 'Strong'];
+    const strengthColors = ['#9C3B31', '#9C3B31', '#9A6206', '#0E7C86', '#1B7A4B'];
+
+    const changeBlk = s.newPw.length < 8 ? 'At least 8 characters.'
+      : s.newPw === PEOPLE[s.who || 'CC-002'].pw ? 'Pick something different from the one you were given.'
+      : !s.repeat ? 'Type it a second time.'
+      : s.repeat !== s.newPw ? 'The two do not match.' : '';
+
+    return {
+      narrow:nw,
+      pagePad:nw ? '24px 16px 40px' : '48px 24px',
+      pageJustify:nw ? 'flex-start' : 'center',
+      cardPad:nw ? '22px 18px' : '26px 24px',
+
+      onSignIn:s.stage === 'signin', onChange:s.stage === 'change', onDone:s.stage === 'done',
+
+      greeting:rp ? 'Welcome back, ' + rp.name.split(' ')[0] : 'Sign in',
+      greetingNote:rp
+        ? 'Just your password — this ' + (nw ? 'phone' : 'computer') + ' remembers who you are.'
+        : 'Use the employee ID your team lead gave you. There is no email address to remember.',
+      askId:!rp,
+      knownDevice:!!rp,
+      deviceName:rp ? rp.name : '',
+      deviceId:rp ? remembered + ' · ' + rp.role : '',
+      deviceInitials:rp ? rp.name.split(' ').map(w => w[0]).join('').slice(0, 2) : '',
+      notMe:() => this.setState({ remembered:null, id:'', pw:'', error:'' }),
+
+      fId:s.id, fPw:s.pw,
+      setId:e => this.setState({ id:e.target.value, error:'' }),
+      setPw:e => this.setState({ pw:e.target.value, error:'' }),
+      onKey:e => { if (e.key === 'Enter') this.attempt(); },
+      idBorder:s.error && !remembered ? '#E0B4AF' : '#DCE4E7',
+      pwBorder:s.error ? '#E0B4AF' : '#DCE4E7',
+      pwType:s.show ? 'text' : 'password',
+      pwToggleLabel:s.show ? 'Hide' : 'Show',
+      togglePw:() => this.setState({ show:!s.show }),
+
+      hasError:!!s.error, error:s.error,
+
+      stay:s.stay,
+      stayMark:s.stay ? '✓' : '',
+      stayBg:s.stay ? '#0E7C86' : '#fff',
+      stayBorder:s.stay ? '#0E7C86' : '#C9D6DA',
+      deviceWord:nw ? 'phone' : 'computer',
+      toggleStay:() => this.setState({ stay:!s.stay }),
+
+      submit:() => this.attempt(),
+      signInLabel:s.busy ? 'Signing in…' : 'Sign in',
+      signInBg:s.busy ? '#0A5C64' : '#0E7C86',
+      signInOpacity:s.busy ? '.85' : '1',
+      demoHint:'Mock accounts: CC-002 / queue123 signs straight in · CC-009 / Kf7-r2mq is a brand new account and must pick a password.',
+
+      fNew:s.newPw, fRepeat:s.repeat,
+      setNew:e => this.setState({ newPw:e.target.value }),
+      setRepeat:e => this.setState({ repeat:e.target.value }),
+      onKeyChange:e => { if (e.key === 'Enter' && !changeBlk) this.setState({ stage:'done' }); },
+      newBorder:s.newPw && st >= 2 ? '#B7E0D0' : s.newPw ? '#E0C98F' : '#DCE4E7',
+      repeatBorder:!s.repeat ? '#DCE4E7' : s.repeat === s.newPw ? '#B7E0D0' : '#E0C98F',
+      strengthW:(st / 4 * 100) + '%',
+      strengthColor:strengthColors[st],
+      strengthLabel:s.newPw ? strengthNames[st] : 'Nothing yet',
+      changeBlocked:!!changeBlk,
+      changeBg:changeBlk ? '#B4C2C6' : '#0E7C86',
+      changeOpacity:changeBlk ? '.75' : '1',
+      changeNote:changeBlk || 'Saved on your account only. Write it somewhere safe.',
+      changeNoteColor:changeBlk ? '#9C3B31' : '#7A8B91',
+      saveNew:() => { if (!changeBlk) this.setState({ stage:'done' }); },
+
+      doneTitle:who ? 'You are in, ' + who.name.split(' ')[0] : 'You are in',
+      doneNote:who
+        ? who.role + ' · ' + s.who + (s.stay ? ' · this ' + (nw ? 'phone' : 'computer') + ' will remember you next time' : ' · you will type your ID again next time')
+        : '',
+      doneNext:who ? 'Next screen: ' + who.dest + '.' : '',
+      signOut:() => this.setState({ stage:'signin', who:null, pw:'', newPw:'', repeat:'', error:'' })
+    };
+  }
+}
+
+</script>
+</body>
+</html>

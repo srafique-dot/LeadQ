@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#F4F7F8; }
+  body { font-family:'IBM Plex Sans', system-ui, sans-serif; color:#16232A; -webkit-font-smoothing:antialiased; }
+  * { box-sizing:border-box; }
+  a { color:#0E7C86; text-decoration:none; }
+  a:hover { color:#0A5C64; text-decoration:underline; }
+  button { font-family:inherit; cursor:pointer; }
+  @keyframes livepulse { 0%,100% { opacity:1 } 50% { opacity:.25 } }
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-direction:column">
+
+  <header style="background:#fff; border-bottom:1px solid #E2E9EB; padding:{{ padHeader }}; display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+    <img src="./assets/umch-logo.png" alt="United Healthcare" style="height:22px; width:auto; display:block" />
+    <span style="font-size:15px; font-weight:600; letter-spacing:-.01em">Floor view</span>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:9px">
+      <span style="width:26px; height:26px; border-radius:50%; background:#0E7C86; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center">{{ meInitials }}</span>
+      <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}">
+        <div style="text-align:right">
+          <div style="font-size:13.5px; font-weight:600">{{ meName }}</div>
+          <div style="font-size:12px; color:#7A8B91">{{ meId }} · Team lead</div>
+        </div>
+      </sc-if>
+    </div>
+  </header>
+
+  <div style="background:#fff; border-bottom:1px solid #E2E9EB; padding:{{ padTabs }}; display:flex; gap:6px; flex-wrap:wrap">
+    <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="2">
+      <button onClick="{{ tb.pick }}" style="flex:{{ segFlex }}; min-height:44px; background:{{ tb.bg }}; color:{{ tb.fg }}; border:1px solid {{ tb.border }}; border-radius:8px; padding:10px 18px; font-size:14px; font-weight:600">{{ tb.label }}</button>
+    </sc-for>
+  </div>
+
+  <div style="flex:1; padding:{{ padMain }}; max-width:1440px; width:100%">
+
+    <sc-if value="{{ hasFlash }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#E7F1F2; border:1px solid #C5DEE0; border-radius:9px; padding:14px 16px; margin-bottom:16px; font-size:13.5px; color:#0A5C64; font-weight:500; line-height:1.5">{{ flash }}</div>
+    </sc-if>
+
+    <sc-if value="{{ onLive }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap">
+          <div style="min-width:0">
+            <div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap">
+              <h1 style="margin:0; font-size:{{ h1Size }}; font-weight:600; letter-spacing:-.015em">The floor right now</h1>
+              <span style="display:inline-flex; align-items:center; gap:6px; background:#E9F6F1; border:1px solid #B7E0D0; border-radius:16px; padding:4px 10px">
+                <span style="width:7px; height:7px; border-radius:50%; background:#1B7A4B; display:block; animation:livepulse 1.8s ease-in-out infinite"></span>
+                <span style="font-size:12px; font-weight:600; color:#125C3D">Live</span>
+              </span>
+            </div>
+            <div style="font-size:13.5px; color:#5D7178; margin-top:6px; line-height:1.5">Queue state and what agents have logged. Call duration and dial history come from the phone system — see the monthly report.</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:{{ tileCols }}; gap:9px; margin-top:18px">
+          <sc-for list="{{ liveTiles }}" as="t" hint-placeholder-count="6">
+            <div style="background:#fff; border:1px solid {{ t.border }}; border-radius:9px; padding:14px 15px">
+              <div style="display:flex; align-items:baseline; gap:5px">
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; color:{{ t.color }}; line-height:1">{{ t.value }}</span>
+                <span style="font-size:13px; color:#7A8B91; font-weight:500">{{ t.unit }}</span>
+              </div>
+              <div style="font-size:12.5px; color:#5D7178; margin-top:6px; line-height:1.4">{{ t.label }}</div>
+              <div style="font-size:12px; color:{{ t.subColor }}; margin-top:3px">{{ t.sub }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid; grid-template-columns:{{ splitCols }}; gap:14px; margin-top:14px; align-items:start">
+
+          <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; overflow:hidden; min-width:0">
+            <div style="padding:14px 16px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:9px; flex-wrap:wrap">
+              <span style="font-size:14.5px; font-weight:600">Agents signed in</span>
+              <span style="font-size:12.5px; color:#7A8B91">{{ agentSummary }}</span>
+              <div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap">
+                <sc-for list="{{ agentFilters }}" as="af" hint-placeholder-count="4">
+                  <button onClick="{{ af.pick }}" style="background:{{ af.bg }}; color:{{ af.fg }}; border:1px solid {{ af.border }}; border-radius:16px; padding:7px 12px; font-size:12.5px; font-weight:600">{{ af.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+
+            <sc-for list="{{ agents }}" as="a" hint-placeholder-count="6">
+              <div style="padding:14px 16px; border-bottom:1px solid #F3F7F7; display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap">
+                <div style="min-width:0; flex:1 1 240px">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                    <span style="font-size:15.5px; font-weight:600; letter-spacing:-.01em">{{ a.name }}</span>
+                    <span style="display:inline-flex; align-items:center; gap:6px; background:{{ a.pillBg }}; border:1px solid {{ a.pillBorder }}; border-radius:16px; padding:4px 10px">
+                      <span style="width:6px; height:6px; border-radius:50%; background:{{ a.dot }}; display:block"></span>
+                      <span style="font-size:12.5px; font-weight:600; color:{{ a.pillFg }}">{{ a.stateLabel }}</span>
+                      <span style="font-family:'IBM Plex Mono',monospace; font-size:12.5px; font-weight:600; color:{{ a.pillFg }}">{{ a.timer }}</span>
+                    </span>
+                  </div>
+                  <div style="font-size:13.5px; color:#2C3B42; margin-top:6px; line-height:1.45">{{ a.line1 }}</div>
+                  <div style="font-size:12.5px; color:#7A8B91; margin-top:3px; line-height:1.45">{{ a.line2 }}</div>
+                </div>
+
+                <div style="flex:0 0 auto; display:flex; gap:16px; flex-wrap:wrap">
+                  <sc-for list="{{ a.metrics }}" as="m" hint-placeholder-count="3">
+                    <div style="min-width:50px">
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:17px; font-weight:600; color:{{ m.color }}; line-height:1">{{ m.value }}</div>
+                      <div style="font-size:11.5px; color:#7A8B91; margin-top:4px">{{ m.label }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="flex:{{ rowBtnFlex }}; display:flex; gap:7px; flex-wrap:wrap">
+                  <button onClick="{{ a.nudge }}" style="flex:{{ btnFlex }}; min-height:44px; background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:9px 13px; font-size:13px; font-weight:600">Message</button>
+                  <sc-if value="{{ a.canPull }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ a.pull }}" style="flex:{{ btnFlex }}; min-height:44px; background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:9px 13px; font-size:13px; font-weight:600">Move lead</button>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+
+            <sc-if value="{{ noAgents }}" hint-placeholder-val="{{ false }}">
+              <div style="padding:32px 16px; text-align:center; font-size:14px; color:#7A8B91">Nobody in that state right now.</div>
+            </sc-if>
+
+            <div style="padding:13px 16px; background:#FAFCFC; font-size:12.5px; color:#7A8B91; line-height:1.55">“Lead open” means the agent opened the brief and has not logged an outcome yet. It is not proof a call is connected.</div>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:14px; min-width:0">
+            <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; overflow:hidden">
+              <div style="padding:14px 16px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:9px">
+                <span style="font-size:14.5px; font-weight:600">Needs you now</span>
+                <span style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600; color:{{ alertCountColor }}">{{ alertCount }}</span>
+              </div>
+              <sc-for list="{{ alerts }}" as="al" hint-placeholder-count="3">
+                <div style="padding:13px 16px; border-bottom:1px solid #F3F7F7">
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                    <span style="width:7px; height:7px; border-radius:50%; background:{{ al.dot }}; display:block"></span>
+                    <span style="font-size:14px; font-weight:600; line-height:1.4">{{ al.title }}</span>
+                    <span style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:12.5px; color:#7A8B91">{{ al.age }}</span>
+                  </div>
+                  <div style="font-size:13px; color:#5D7178; margin-top:5px; line-height:1.55">{{ al.detail }}</div>
+                  <button onClick="{{ al.act }}" style="width:{{ alertBtnWidth }}; min-height:44px; background:#fff; border:1px solid #DCE4E7; color:#0A5C64; border-radius:7px; padding:9px 14px; font-size:13px; font-weight:600; margin-top:10px">{{ al.action }}</button>
+                </div>
+              </sc-for>
+              <sc-if value="{{ noAlerts }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:28px 16px; text-align:center; font-size:13.5px; color:#7A8B91">Nothing breaching. The queue is inside target.</div>
+              </sc-if>
+            </div>
+
+            <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; overflow:hidden">
+              <div style="padding:14px 16px; border-bottom:1px solid #EDF2F3; font-size:14.5px; font-weight:600">Callbacks due next hour</div>
+              <sc-for list="{{ callbacks }}" as="cb" hint-placeholder-count="4">
+                <div style="padding:12px 16px; border-bottom:1px solid #F3F7F7; display:flex; align-items:center; gap:12px">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:14px; font-weight:600; color:{{ cb.timeColor }}; flex:0 0 auto">{{ cb.time }}</span>
+                  <div style="min-width:0">
+                    <div style="font-size:13.5px; font-weight:600">{{ cb.name }}</div>
+                    <div style="font-size:12.5px; color:#7A8B91; margin-top:2px; line-height:1.45">{{ cb.detail }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; margin-top:14px; overflow:hidden">
+          <div style="padding:14px 16px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+            <span style="font-size:14.5px; font-weight:600">Logged today, by agent</span>
+            <span style="margin-left:auto; font-size:12.5px; color:#7A8B91">Outcomes agents typed in · target first call within {{ targetMins }} min</span>
+          </div>
+
+          <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}">
+            <div style="padding:10px 16px; border-bottom:1px solid #EDF2F3; display:flex; gap:14px; align-items:center">
+              <div style="flex:1 1 200px; font-size:11.5px; font-weight:700; letter-spacing:.06em; color:#7A8B91">AGENT</div>
+              <sc-for list="{{ dayCols }}" as="pc" hint-placeholder-count="5">
+                <div style="flex:0 0 {{ pc.w }}; text-align:right; font-size:11.5px; font-weight:700; letter-spacing:.06em; color:#7A8B91">{{ pc.label }}</div>
+              </sc-for>
+            </div>
+            <sc-for list="{{ dayRows }}" as="p" hint-placeholder-count="6">
+              <div style="padding:13px 16px; border-bottom:1px solid #F3F7F7; display:flex; gap:14px; align-items:center">
+                <div style="flex:1 1 200px; min-width:0">
+                  <div style="font-size:14.5px; font-weight:600">{{ p.name }}</div>
+                  <div style="height:5px; border-radius:3px; background:#EDF2F3; margin-top:7px; max-width:220px; overflow:hidden">
+                    <div style="height:100%; width:{{ p.barW }}; background:{{ p.barColor }}"></div>
+                  </div>
+                </div>
+                <sc-for list="{{ p.cells }}" as="c" hint-placeholder-count="5">
+                  <div style="flex:0 0 {{ c.w }}; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:14.5px; font-weight:600; color:{{ c.color }}">{{ c.value }}</div>
+                </sc-for>
+              </div>
+            </sc-for>
+            <div style="padding:13px 16px; display:flex; gap:14px; align-items:center; background:#FAFCFC">
+              <div style="flex:1 1 200px; font-size:14px; font-weight:600; color:#5D7178">Team</div>
+              <sc-for list="{{ dayTotals }}" as="tt" hint-placeholder-count="5">
+                <div style="flex:0 0 {{ tt.w }}; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:14.5px; font-weight:600; color:#16232A">{{ tt.value }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ narrow }}" hint-placeholder-val="{{ false }}">
+            <sc-for list="{{ dayRows }}" as="p" hint-placeholder-count="6">
+              <div style="padding:14px 16px; border-bottom:1px solid #F3F7F7">
+                <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+                  <span style="font-size:15px; font-weight:600">{{ p.name }}</span>
+                  <span style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; color:#1B7A4B">{{ p.bookedOf }}</span>
+                </div>
+                <div style="height:5px; border-radius:3px; background:#EDF2F3; margin-top:9px; overflow:hidden">
+                  <div style="height:100%; width:{{ p.barW }}; background:{{ p.barColor }}"></div>
+                </div>
+                <div style="display:flex; gap:16px; margin-top:10px; flex-wrap:wrap">
+                  <sc-for list="{{ p.chips }}" as="ch" hint-placeholder-count="4">
+                    <div>
+                      <div style="font-family:'IBM Plex Mono',monospace; font-size:14.5px; font-weight:600; color:{{ ch.color }}; line-height:1">{{ ch.value }}</div>
+                      <div style="font-size:11.5px; color:#7A8B91; margin-top:4px">{{ ch.label }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+            <div style="padding:14px 16px; background:#FAFCFC; font-size:13.5px; color:#5D7178; line-height:1.55">{{ dayTeamLine }}</div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ onMonth }}" hint-placeholder-val="{{ false }}">
+      <div>
+        <div style="display:flex; align-items:flex-end; gap:14px; flex-wrap:wrap">
+          <div style="min-width:0">
+            <h1 style="margin:0; font-size:{{ h1Size }}; font-weight:600; letter-spacing:-.015em">Monthly report</h1>
+            <div style="font-size:13.5px; color:#5D7178; margin-top:6px; line-height:1.5">Call duration and dial counts come from the phone system’s call record file. Upload it once a month and it is matched to the leads and outcomes in here.</div>
+          </div>
+          <div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; width:{{ segWidth }}">
+            <sc-for list="{{ months }}" as="mo" hint-placeholder-count="3">
+              <button onClick="{{ mo.pick }}" style="flex:{{ segFlex }}; min-height:44px; background:{{ mo.bg }}; color:{{ mo.fg }}; border:1px solid {{ mo.border }}; border-radius:8px; padding:10px 16px; font-size:13.5px; font-weight:600">{{ mo.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-if value="{{ monthMissing }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff; border:1.5px dashed #C9D6DA; border-radius:10px; padding:{{ dropPad }}; margin-top:18px; text-align:center">
+            <div style="font-size:16.5px; font-weight:600">No call record file for {{ monthLabel }} yet</div>
+            <div style="font-size:13.5px; color:#5D7178; margin-top:8px; line-height:1.6; max-width:520px; margin-left:auto; margin-right:auto">Export the outbound CDR from the phone system and drop it here. One row per dialled call: agent extension, number dialled, start time, duration, and whether it connected.</div>
+            <button onClick="{{ upload }}" style="background:#0E7C86; color:#fff; border:none; border-radius:8px; padding:14px 24px; font-size:15.5px; font-weight:700; margin-top:16px; min-height:48px; width:{{ alertBtnWidth }}">Upload the CDR file</button>
+            <div style="font-size:12.5px; color:#7A8B91; margin-top:12px">CSV or Excel · the queue side of this month is already recorded and shown below</div>
+          </div>
+
+          <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; margin-top:14px; overflow:hidden">
+            <div style="padding:14px 16px; border-bottom:1px solid #EDF2F3; font-size:14.5px; font-weight:600">What this system knows for {{ monthLabel }}</div>
+            <div style="display:grid; grid-template-columns:{{ tileCols }}; gap:1px; background:#EDF2F3">
+              <sc-for list="{{ queueOnlyTiles }}" as="q" hint-placeholder-count="4">
+                <div style="background:#fff; padding:15px 16px">
+                  <div style="font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; color:{{ q.color }}; line-height:1">{{ q.value }}</div>
+                  <div style="font-size:12.5px; color:#5D7178; margin-top:6px; line-height:1.4">{{ q.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ monthReady }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; padding:14px 16px; margin-top:18px; display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+            <div style="min-width:0">
+              <div style="font-size:14px; font-weight:600">{{ fileName }}</div>
+              <div style="font-size:12.5px; color:#7A8B91; margin-top:4px; line-height:1.5">{{ fileMeta }}</div>
+            </div>
+            <button onClick="{{ replace }}" style="margin-left:auto; background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:10px 14px; font-size:13.5px; font-weight:600; min-height:44px">Replace file</button>
+          </div>
+
+          <div style="display:grid; grid-template-columns:{{ tileCols }}; gap:9px; margin-top:14px">
+            <sc-for list="{{ monthTiles }}" as="t" hint-placeholder-count="6">
+              <div style="background:#fff; border:1px solid {{ t.border }}; border-radius:9px; padding:14px 15px">
+                <div style="display:flex; align-items:baseline; gap:5px">
+                  <span style="font-family:'IBM Plex Mono',monospace; font-size:24px; font-weight:600; color:{{ t.color }}; line-height:1">{{ t.value }}</span>
+                  <span style="font-size:13px; color:#7A8B91; font-weight:500">{{ t.unit }}</span>
+                </div>
+                <div style="font-size:12.5px; color:#5D7178; margin-top:6px; line-height:1.4">{{ t.label }}</div>
+                <div style="font-size:12px; color:{{ t.subColor }}; margin-top:3px">{{ t.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:#fff; border:1px solid #EBDCB4; border-radius:10px; margin-top:14px; overflow:hidden">
+            <div style="padding:14px 16px; background:#FDF9EE; border-bottom:1px solid #EBDCB4">
+              <div style="font-size:14.5px; font-weight:600; color:#7A4E06">Calls dialled vs outcomes logged</div>
+              <div style="font-size:13px; color:#7A4E06; margin-top:5px; line-height:1.55">{{ reconLine }}</div>
+            </div>
+            <sc-for list="{{ recon }}" as="rc" hint-placeholder-count="3">
+              <div style="padding:12px 16px; border-bottom:1px solid #F3F7F7; display:flex; align-items:center; gap:12px; flex-wrap:wrap">
+                <div style="min-width:0; flex:1 1 200px">
+                  <div style="font-size:14px; font-weight:600">{{ rc.name }}</div>
+                  <div style="font-size:12.5px; color:#7A8B91; margin-top:3px">{{ rc.detail }}</div>
+                </div>
+                <div style="font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; color:{{ rc.color }}">{{ rc.gap }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; margin-top:14px; overflow:hidden">
+            <div style="padding:14px 16px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+              <span style="font-size:14.5px; font-weight:600">{{ monthLabel }} by agent</span>
+              <span style="margin-left:auto; font-size:12.5px; color:#7A8B91">Duration columns from the CDR · booked from logged outcomes</span>
+            </div>
+
+            <sc-if value="{{ wide }}" hint-placeholder-val="{{ true }}">
+              <div style="padding:10px 16px; border-bottom:1px solid #EDF2F3; display:flex; gap:14px; align-items:center">
+                <div style="flex:1 1 200px; font-size:11.5px; font-weight:700; letter-spacing:.06em; color:#7A8B91">AGENT</div>
+                <sc-for list="{{ monthCols }}" as="mc" hint-placeholder-count="6">
+                  <div style="flex:0 0 {{ mc.w }}; text-align:right; font-size:11.5px; font-weight:700; letter-spacing:.06em; color:#7A8B91">{{ mc.label }}</div>
+                </sc-for>
+              </div>
+              <sc-for list="{{ monthRows }}" as="m" hint-placeholder-count="6">
+                <div style="padding:13px 16px; border-bottom:1px solid #F3F7F7; display:flex; gap:14px; align-items:center">
+                  <div style="flex:1 1 200px; min-width:0">
+                    <div style="font-size:14.5px; font-weight:600">{{ m.name }}</div>
+                    <div style="height:5px; border-radius:3px; background:#EDF2F3; margin-top:7px; max-width:220px; overflow:hidden">
+                      <div style="height:100%; width:{{ m.barW }}; background:{{ m.barColor }}"></div>
+                    </div>
+                  </div>
+                  <sc-for list="{{ m.cells }}" as="c" hint-placeholder-count="6">
+                    <div style="flex:0 0 {{ c.w }}; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:14.5px; font-weight:600; color:{{ c.color }}">{{ c.value }}</div>
+                  </sc-for>
+                </div>
+              </sc-for>
+              <div style="padding:13px 16px; display:flex; gap:14px; align-items:center; background:#FAFCFC">
+                <div style="flex:1 1 200px; font-size:14px; font-weight:600; color:#5D7178">Team</div>
+                <sc-for list="{{ monthTotals }}" as="tt" hint-placeholder-count="6">
+                  <div style="flex:0 0 {{ tt.w }}; text-align:right; font-family:'IBM Plex Mono',monospace; font-size:14.5px; font-weight:600; color:#16232A">{{ tt.value }}</div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ narrow }}" hint-placeholder-val="{{ false }}">
+              <sc-for list="{{ monthRows }}" as="m" hint-placeholder-count="6">
+                <div style="padding:14px 16px; border-bottom:1px solid #F3F7F7">
+                  <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+                    <span style="font-size:15px; font-weight:600">{{ m.name }}</span>
+                    <span style="margin-left:auto; font-family:'IBM Plex Mono',monospace; font-size:15px; font-weight:600; color:#1B7A4B">{{ m.bookedOf }}</span>
+                  </div>
+                  <div style="height:5px; border-radius:3px; background:#EDF2F3; margin-top:9px; overflow:hidden">
+                    <div style="height:100%; width:{{ m.barW }}; background:{{ m.barColor }}"></div>
+                  </div>
+                  <div style="display:flex; gap:16px; margin-top:10px; flex-wrap:wrap">
+                    <sc-for list="{{ m.chips }}" as="ch" hint-placeholder-count="4">
+                      <div>
+                        <div style="font-family:'IBM Plex Mono',monospace; font-size:14.5px; font-weight:600; color:{{ ch.color }}; line-height:1">{{ ch.value }}</div>
+                        <div style="font-size:11.5px; color:#7A8B91; margin-top:4px">{{ ch.label }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+              <div style="padding:14px 16px; background:#FAFCFC; font-size:13.5px; color:#5D7178; line-height:1.55">{{ monthTeamLine }}</div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+  </div>
+</div>
+
+<sc-if value="{{ moveOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed; inset:0; background:rgba(15,28,34,.55); display:flex; align-items:{{ sheetAlign }}; justify-content:center; padding:{{ sheetPad }}; z-index:70; overflow-y:auto">
+    <div style="background:#fff; border-radius:{{ sheetRadius }}; width:100%; max-width:{{ sheetMax }}; min-height:{{ sheetMinH }}; padding:22px; box-shadow:0 24px 60px rgba(15,28,34,.28)">
+      <div style="font-size:19px; font-weight:600; letter-spacing:-.01em">{{ moveTitle }}</div>
+      <div style="font-size:13.5px; color:#5D7178; margin-top:8px; line-height:1.6">{{ moveBody }}</div>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-top:16px">
+        <sc-for list="{{ moveTargets }}" as="mt" hint-placeholder-count="2">
+          <button onClick="{{ mt.pick }}" style="text-align:left; background:{{ mt.bg }}; border:1.5px solid {{ mt.border }}; border-radius:8px; padding:13px 14px; min-height:48px">
+            <div style="font-size:14.5px; font-weight:600; color:{{ mt.fg }}">{{ mt.name }}</div>
+            <div style="font-size:12.5px; color:{{ mt.subFg }}; margin-top:3px">{{ mt.detail }}</div>
+          </button>
+        </sc-for>
+      </div>
+      <div style="font-size:13px; color:#7A8B91; margin-top:14px; line-height:1.55">{{ moveNote }}</div>
+      <div style="display:flex; gap:9px; margin-top:16px; flex-wrap:wrap">
+        <button onClick="{{ closeMove }}" style="flex:{{ btnFlex }}; min-height:48px; background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:12px 16px; font-size:14px; font-weight:600">Cancel</button>
+        <button onClick="{{ confirmMove }}" disabled="{{ moveBlocked }}" style="flex:{{ btnFlex }}; min-height:48px; background:{{ moveBg }}; color:#fff; border:none; border-radius:7px; padding:12px 18px; font-size:14px; font-weight:700; opacity:{{ moveOpacity }}">Move it</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1000},&quot;targetFirstCallMinutes&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:5,&quot;min&quot;:2,&quot;max&quot;:30,&quot;unit&quot;:&quot;min&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Targets&quot;},&quot;liveTimers&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behaviour&quot;}}">
+const STATES = {
+  open:{ label:'Lead open', dot:'#0E7C86', bg:'#E7F1F2', border:'#C5DEE0', fg:'#0A5C64' },
+  wrap:{ label:'Logging outcome', dot:'#4A3E8F', bg:'#EDEBF6', border:'#D2CDEA', fg:'#4A3E8F' },
+  ready:{ label:'No lead open', dot:'#1B7A4B', bg:'#E9F6F1', border:'#B7E0D0', fg:'#125C3D' },
+  idle:{ label:'Nothing logged', dot:'#9A6206', bg:'#FDF9EE', border:'#EBDCB4', fg:'#7A4E06' },
+  offline:{ label:'Signed out', dot:'#9AA9AE', bg:'#F4F7F8', border:'#E2E9EB', fg:'#5D7178' }
+};
+
+const AGENTS = [
+  { id:'CC-002', name:'Nusrat Jahan', st:'open', since:134, lead:'Kamrul Hasan · Prof. A.Q.M. Mohsen',
+    sub:'Attempt 1 · UMCH Main · wants 09 Sep', worked:14, logged:31, booked:9 },
+  { id:'CC-005', name:'Rakib Hossain', st:'wrap', since:96, lead:'Sultana Razia · Dr. Sumia Bari',
+    sub:'Call 3 of 4 · SMS not sent yet', worked:12, logged:27, booked:5 },
+  { id:'CC-009', name:'Farhana Islam', st:'idle', since:512, lead:'No lead open',
+    sub:'14 leads waiting · nothing logged in 8 minutes', worked:6, logged:12, booked:2 },
+  { id:'CC-011', name:'Sadia Afrin', st:'open', since:41, lead:'Rahima Khatun · Dr. Syeda Nure Jannat',
+    sub:'Attempt 2 · Medix Uttara · no date given', worked:13, logged:29, booked:11 },
+  { id:'CC-014', name:'Imran Kabir', st:'ready', since:22, lead:'Ready for the next lead',
+    sub:'Last outcome: booked · 2m ago', worked:11, logged:24, booked:7 },
+  { id:'CC-003', name:'Moshiur Rahman', st:'offline', since:5400, lead:'Signed out at 1:20 pm',
+    sub:'Shift ended · 3 leads returned to the queue', worked:8, logged:18, booked:3 }
+];
+
+const CALLBACKS = [
+  { time:'1:55', name:'Anwar Hossain', detail:'Promised callback missed by 22 min · CC-009', late:true },
+  { time:'2:30', name:'Jamil Uddin', detail:'Asked to be called after his shift · CC-005', late:false },
+  { time:'2:45', name:'Ummey Habiba Nahar', detail:'Booked for Shujat — date to confirm · CC-002', late:false },
+  { time:'3:10', name:'Rehana Begum', detail:'Wants to compare prices first · CC-011', late:false }
+];
+
+// CDR-derived figures, per agent, for the uploaded month
+const CDR = {
+  aug:{
+    file:'outbound_cdr_2026-08.csv', rows:3413, range:'01 Aug – 31 Aug 2026', uploaded:'02 Sep, by OP-001',
+    per:{
+      'CC-002':{ dials:742, conn:498, mins:1642, avg:'3:18', logged:absent(0) },
+      'CC-005':{ dials:611, conn:352, mins:1088, avg:'3:05', logged:absent(48) },
+      'CC-009':{ dials:388, conn:171, mins:402, avg:'2:21', logged:absent(96) },
+      'CC-011':{ dials:704, conn:472, mins:1701, avg:'3:36', logged:absent(0) },
+      'CC-014':{ dials:566, conn:341, mins:1002, avg:'2:56', logged:absent(12) },
+      'CC-003':{ dials:402, conn:198, mins:511, avg:'2:35', logged:absent(31) }
+    },
+    booked:{ 'CC-002':181, 'CC-005':96, 'CC-009':38, 'CC-011':204, 'CC-014':122, 'CC-003':52 }
+  }
+};
+function absent(n) { return n; }
+
+class Component extends DCLogic {
+  state = { tick:0, tab:'live', month:'aug', filter:'all', flash:'', move:null, moveTo:null, narrow:false, resolved:[], uploaded:{ aug:true } };
+
+  componentDidMount() {
+    this._t = setInterval(() => this.setState(s => ({ tick:s.tick + 1 })), 1000);
+    const measure = () => {
+      const w = document.documentElement.clientWidth || window.innerWidth || 0;
+      if (!w) return;
+      const n = w < 1000;
+      if (n !== this.state.narrow) this.setState({ narrow:n });
+    };
+    this._fit = measure;
+    measure();
+    requestAnimationFrame(measure);
+    this._late = setTimeout(measure, 300);
+    if (window.ResizeObserver) {
+      this._ro = new ResizeObserver(measure);
+      this._ro.observe(document.documentElement);
+    }
+    window.addEventListener('resize', measure);
+  }
+  componentWillUnmount() {
+    clearInterval(this._t);
+    window.removeEventListener('resize', this._fit);
+    if (this._ro) this._ro.disconnect();
+    clearTimeout(this._late);
+  }
+
+  mmss(sec) {
+    const s = Math.max(0, Math.floor(sec));
+    if (s >= 3600) return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  hrs(mins) { return Math.round(mins / 60) + 'h'; }
+
+  renderVals() {
+    const s = this.state, nw = s.narrow;
+    const target = this.props.targetFirstCallMinutes ?? 5;
+    const running = this.props.liveTimers ?? true;
+
+    const rows = AGENTS.map(a => ({ ...a, secs:a.since + (running ? s.tick : 0) }));
+    const waiting = 14;
+    const openNow = rows.filter(a => a.st === 'open').length;
+    const onShift = rows.filter(a => a.st !== 'offline').length;
+    const free = rows.filter(a => a.st === 'ready').length;
+    const logged = rows.reduce((n, a) => n + a.logged, 0);
+    const booked = rows.reduce((n, a) => n + a.booked, 0);
+    const worked = rows.reduce((n, a) => n + a.worked, 0);
+
+    const shown = s.filter === 'all' ? rows
+      : s.filter === 'open' ? rows.filter(a => a.st === 'open' || a.st === 'wrap')
+      : s.filter === 'free' ? rows.filter(a => a.st === 'ready' || a.st === 'idle')
+      : rows.filter(a => a.st === 'offline');
+
+    const alertDefs = [
+      { key:'breach', dot:'#9C3B31', title:'3 leads past the ' + target + '-minute target', age:'oldest 19m',
+        detail:'Nobody has opened them. Farhana has logged nothing for 8 minutes and Imran is free.', action:'Push to the free agents' },
+      { key:'sms', dot:'#9A6206', title:'Rakib is on attempt 3 without an SMS', age:'now',
+        detail:'Sultana Razia — he cannot close the lead until the SMS goes out.', action:'Remind him' },
+      { key:'late', dot:'#9C3B31', title:'A promised callback is 22 minutes late', age:'1:55 pm',
+        detail:'Anwar Hossain — sitting with CC-009 Farhana Islam.', action:'Reassign the callback' },
+      { key:'idle', dot:'#9A6206', title:'Farhana has logged nothing for 8 minutes', age:'8m',
+        detail:'12 outcomes today against a team average of 25.', action:'Message her' }
+    ].filter(a => s.resolved.indexOf(a.key) < 0);
+
+    const dayCols = [{ label:'LEADS WORKED', w:'104px' }, { label:'OUTCOMES', w:'86px' }, { label:'BOOKED', w:'72px' },
+      { label:'BOOK %', w:'72px' }, { label:'NO ANSWER', w:'94px' }];
+    const dayRows = rows.map(a => ({
+      name:a.name, worked:a.worked, logged:a.logged, booked:a.booked,
+      br:Math.round(a.booked / Math.max(1, a.logged) * 100), na:a.logged - a.booked - Math.round(a.logged * 0.18)
+    })).sort((x, y) => y.booked - x.booked);
+    const topBooked = Math.max(1, dayRows[0] ? dayRows[0].booked : 1);
+
+    const monthKeys = [{ k:'aug', label:'Aug 2026' }, { k:'jul', label:'Jul 2026' }, { k:'sep', label:'Sep 2026' }];
+    const monthLabel = (monthKeys.filter(m => m.k === s.month)[0] || monthKeys[0]).label;
+    const has = !!s.uploaded[s.month] && !!CDR[s.month];
+    const cd = has ? CDR[s.month] : null;
+
+    const mCols = [{ label:'CALLS DIALLED', w:'110px' }, { label:'CONNECTED', w:'94px' }, { label:'CONNECT %', w:'92px' },
+      { label:'TALK TIME', w:'88px' }, { label:'AVG CALL', w:'84px' }, { label:'BOOKED', w:'72px' }];
+    const mRows = !cd ? [] : rows.map(a => {
+      const p = cd.per[a.id], bk = cd.booked[a.id];
+      return { name:a.name, dials:p.dials, conn:p.conn, rate:Math.round(p.conn / p.dials * 100),
+        mins:p.mins, avg:p.avg, booked:bk, missing:p.logged };
+    }).sort((x, y) => y.booked - x.booked);
+    const mTop = mRows[0] ? Math.max(1, mRows[0].booked) : 1;
+    const mDials = mRows.reduce((n, r) => n + r.dials, 0);
+    const mConn = mRows.reduce((n, r) => n + r.conn, 0);
+    const mMins = mRows.reduce((n, r) => n + r.mins, 0);
+    const mBooked = mRows.reduce((n, r) => n + r.booked, 0);
+    const mMissing = mRows.reduce((n, r) => n + r.missing, 0);
+
+    const moveAgent = s.move ? rows.filter(a => a.id === s.move)[0] : null;
+    const moveOpts = moveAgent ? rows.filter(a => (a.st === 'ready' || a.st === 'idle') && a.id !== moveAgent.id) : [];
+
+    return {
+      meName:'Shahriar Kabir', meId:'OP-001', meInitials:'SK',
+      narrow:nw, wide:!nw,
+      padHeader:nw ? '12px 16px' : '14px 28px',
+      padTabs:nw ? '10px 16px' : '10px 28px',
+      padMain:nw ? '18px 16px 40px' : '22px 28px 48px',
+      h1Size:nw ? '21px' : '26px',
+      tileCols:nw ? 'repeat(2,minmax(0,1fr))' : 'repeat(auto-fit,minmax(160px,1fr))',
+      splitCols:nw ? '1fr' : 'minmax(0,1.85fr) minmax(300px,1fr)',
+      segWidth:nw ? '100%' : 'auto',
+      segFlex:nw ? '1 1 0' : '0 0 auto',
+      btnFlex:nw ? '1 1 120px' : '0 0 auto',
+      rowBtnFlex:nw ? '1 1 100%' : '0 0 auto',
+      alertBtnWidth:nw ? '100%' : 'auto',
+      dropPad:nw ? '26px 18px' : '38px 24px',
+      sheetAlign:nw ? 'stretch' : 'center',
+      sheetPad:nw ? '0' : '24px',
+      sheetMax:nw ? 'none' : '480px',
+      sheetRadius:nw ? '0' : '12px',
+      sheetMinH:nw ? '100%' : '0',
+
+      tabs:[{ k:'live', label:'Live floor' }, { k:'month', label:'Monthly report' }].map(t => {
+        const on = s.tab === t.k;
+        return { label:t.label, bg:on ? '#0E7C86' : '#fff', fg:on ? '#fff' : '#5D7178', border:on ? '#0E7C86' : '#DCE4E7',
+          pick:() => this.setState({ tab:t.k, flash:'' }) };
+      }),
+      onLive:s.tab === 'live', onMonth:s.tab === 'month',
+      targetMins:target,
+
+      liveTiles:[
+        { value:waiting, unit:'', label:'Leads waiting for a call', sub:'oldest 19m',
+          color:waiting > 10 ? '#9C3B31' : '#16232A', subColor:'#9C3B31', border:waiting > 10 ? '#F0CFCA' : '#E2E9EB' },
+        { value:openNow + '/' + onShift, unit:'', label:'Agents with a lead open', sub:free + ' free · 1 quiet', color:'#0E7C86', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:worked, unit:'', label:'Leads worked today', sub:'across ' + onShift + ' agents', color:'#16232A', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:logged, unit:'', label:'Outcomes logged', sub:'this shift', color:'#16232A', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:booked, unit:'', label:'Booked', sub:Math.round(booked / logged * 100) + '% of outcomes', color:'#1B7A4B', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:3, unit:'', label:'Missed the ' + target + '-min target', sub:'needs a decision', color:'#9C3B31', subColor:'#9C3B31', border:'#F0CFCA' }
+      ],
+
+      agentSummary:openNow + ' with a lead open · ' + free + ' free',
+      agentFilters:[{ k:'all', label:'All' }, { k:'open', label:'Lead open' }, { k:'free', label:'Free & quiet' }, { k:'off', label:'Signed out' }].map(f => {
+        const on = s.filter === f.k;
+        return { label:f.label, bg:on ? '#0E7C86' : '#fff', fg:on ? '#fff' : '#5D7178', border:on ? '#0E7C86' : '#DCE4E7',
+          pick:() => this.setState({ filter:f.k }) };
+      }),
+
+      agents:shown.map(a => {
+        const st = STATES[a.st];
+        return {
+          name:a.name + ' · ' + a.id,
+          stateLabel:st.label, dot:st.dot, pillBg:st.bg, pillBorder:st.border, pillFg:st.fg,
+          timer:a.st === 'ready' ? '' : this.mmss(a.secs),
+          line1:a.lead, line2:a.sub,
+          metrics:[
+            { value:a.worked, label:'leads today', color:'#16232A' },
+            { value:a.logged, label:'outcomes', color:'#16232A' },
+            { value:a.booked, label:'booked', color:'#1B7A4B' }
+          ],
+          canPull:a.st === 'open' || a.st === 'wrap' || a.st === 'idle',
+          nudge:() => this.setState({ flash:'Message sent to ' + a.name + ' — it shows on her call screen.' }),
+          pull:() => this.setState({ move:a.id, moveTo:null })
+        };
+      }),
+      noAgents:shown.length === 0,
+
+      alerts:alertDefs.map(a => ({
+        dot:a.dot, title:a.title, age:a.age, detail:a.detail, action:a.action,
+        act:() => this.setState(x => ({ resolved:x.resolved.concat([a.key]), flash:a.action + ' — done. Logged against OP-001.' }))
+      })),
+      alertCount:alertDefs.length,
+      alertCountColor:alertDefs.length ? '#9C3B31' : '#1B7A4B',
+      noAlerts:alertDefs.length === 0,
+
+      callbacks:CALLBACKS.map(c => ({ time:c.time, name:c.name, detail:c.detail, timeColor:c.late ? '#9C3B31' : '#0A5C64' })),
+
+      dayCols,
+      dayRows:dayRows.map(r => ({
+        name:r.name, barW:Math.round(r.booked / topBooked * 100) + '%', barColor:r.booked === topBooked ? '#1B7A4B' : '#0E7C86',
+        bookedOf:r.booked + ' booked',
+        cells:[
+          { value:r.worked, w:dayCols[0].w, color:'#16232A' },
+          { value:r.logged, w:dayCols[1].w, color:'#16232A' },
+          { value:r.booked, w:dayCols[2].w, color:'#1B7A4B' },
+          { value:r.br + '%', w:dayCols[3].w, color:r.br < 20 ? '#9C3B31' : '#16232A' },
+          { value:r.na, w:dayCols[4].w, color:'#5D7178' }
+        ],
+        chips:[
+          { value:r.worked, label:'leads', color:'#16232A' },
+          { value:r.logged, label:'outcomes', color:'#16232A' },
+          { value:r.br + '%', label:'book rate', color:r.br < 20 ? '#9C3B31' : '#16232A' },
+          { value:r.na, label:'no answer', color:'#5D7178' }
+        ]
+      })),
+      dayTotals:[
+        { value:worked, w:dayCols[0].w }, { value:logged, w:dayCols[1].w }, { value:booked, w:dayCols[2].w },
+        { value:Math.round(booked / logged * 100) + '%', w:dayCols[3].w },
+        { value:dayRows.reduce((n, r) => n + r.na, 0), w:dayCols[4].w }
+      ],
+      dayTeamLine:'Team today: ' + worked + ' leads worked · ' + logged + ' outcomes · ' + booked + ' booked (' + Math.round(booked / logged * 100) + '%)',
+
+      months:monthKeys.map(m => {
+        const on = s.month === m.k;
+        return { label:m.label, bg:on ? '#0E7C86' : '#fff', fg:on ? '#fff' : '#5D7178', border:on ? '#0E7C86' : '#DCE4E7',
+          pick:() => this.setState({ month:m.k }) };
+      }),
+      monthLabel,
+      monthReady:has, monthMissing:!has,
+      upload:() => this.setState(x => ({ uploaded:{ ...x.uploaded, [x.month]:true }, month:'aug',
+        flash:'Nothing uploaded in this mock — showing the August file so you can see the shape of the report.' })),
+      replace:() => this.setState({ flash:'A new file replaces the month entirely. Nothing agents logged is overwritten.' }),
+      fileName:cd ? cd.file : '',
+      fileMeta:cd ? cd.rows.toLocaleString() + ' call records · ' + cd.range + ' · uploaded ' + cd.uploaded : '',
+
+      queueOnlyTiles:[
+        { value:428, label:'Leads received', color:'#16232A' },
+        { value:391, label:'Outcomes logged', color:'#16232A' },
+        { value:112, label:'Booked', color:'#1B7A4B' },
+        { value:'6m', label:'Median wait to first call', color:'#9A6206' }
+      ],
+
+      monthTiles:!cd ? [] : [
+        { value:mDials.toLocaleString(), unit:'', label:'Calls dialled', sub:'from the CDR', color:'#16232A', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:Math.round(mConn / mDials * 100), unit:'%', label:'Connected', sub:mConn.toLocaleString() + ' answered', color:'#16232A', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:this.hrs(mMins), unit:'', label:'Total talk time', sub:'across ' + mRows.length + ' agents', color:'#16232A', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:'3:09', unit:'', label:'Average call length', sub:'connected calls only', color:'#16232A', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:mBooked, unit:'', label:'Booked', sub:Math.round(mBooked / mConn * 100) + '% of connected', color:'#1B7A4B', subColor:'#7A8B91', border:'#E2E9EB' },
+        { value:mMissing, unit:'', label:'Calls with no outcome logged', sub:'agents to follow up', color:'#9C3B31', subColor:'#9C3B31', border:'#F0CFCA' }
+      ],
+
+      reconLine:!cd ? '' : mMissing + ' connected calls in the file have no matching outcome in the queue. Either the agent called from their own phone, or they did not log it.',
+      recon:mRows.filter(r => r.missing > 0).map(r => ({
+        name:r.name, gap:r.missing + ' unlogged',
+        detail:r.conn + ' connected in the file · ' + (r.conn - r.missing) + ' outcomes matched',
+        color:r.missing > 60 ? '#9C3B31' : '#9A6206'
+      })),
+
+      monthCols:mCols,
+      monthRows:mRows.map(r => ({
+        name:r.name, barW:Math.round(r.booked / mTop * 100) + '%', barColor:r.booked === mTop ? '#1B7A4B' : '#0E7C86',
+        bookedOf:r.booked + ' booked',
+        cells:[
+          { value:r.dials, w:mCols[0].w, color:'#16232A' },
+          { value:r.conn, w:mCols[1].w, color:'#16232A' },
+          { value:r.rate + '%', w:mCols[2].w, color:r.rate < 50 ? '#9C3B31' : '#16232A' },
+          { value:this.hrs(r.mins), w:mCols[3].w, color:'#16232A' },
+          { value:r.avg, w:mCols[4].w, color:'#5D7178' },
+          { value:r.booked, w:mCols[5].w, color:'#1B7A4B' }
+        ],
+        chips:[
+          { value:r.dials, label:'dialled', color:'#16232A' },
+          { value:r.rate + '%', label:'connected', color:r.rate < 50 ? '#9C3B31' : '#16232A' },
+          { value:this.hrs(r.mins), label:'talk time', color:'#16232A' },
+          { value:r.avg, label:'avg call', color:'#5D7178' }
+        ]
+      })),
+      monthTotals:!cd ? [] : [
+        { value:mDials.toLocaleString(), w:mCols[0].w }, { value:mConn.toLocaleString(), w:mCols[1].w },
+        { value:Math.round(mConn / mDials * 100) + '%', w:mCols[2].w },
+        { value:this.hrs(mMins), w:mCols[3].w }, { value:'3:09', w:mCols[4].w }, { value:mBooked, w:mCols[5].w }
+      ],
+      monthTeamLine:!cd ? '' : 'Team: ' + mDials.toLocaleString() + ' dialled · ' + Math.round(mConn / mDials * 100) + '% connected · ' + this.hrs(mMins) + ' talk time · ' + mBooked + ' booked',
+
+      flash:s.flash, hasFlash:!!s.flash,
+
+      moveOpen:!!moveAgent,
+      moveTitle:moveAgent ? 'Move ' + moveAgent.name + '’s lead' : '',
+      moveBody:!moveAgent ? '' : (moveAgent.st === 'open'
+        ? 'She has this lead open and may be on the phone right now. The lead transfers as soon as she logs an outcome — nothing is cut off.'
+        : 'The lead goes back out immediately and the attempt count carries over.') + ' · ' + moveAgent.lead,
+      moveTargets:moveOpts.map(a => {
+        const on = s.moveTo === a.id;
+        return { name:a.name + ' · ' + a.id, detail:STATES[a.st].label + ' ' + this.mmss(a.secs) + ' · ' + a.logged + ' outcomes today',
+          bg:on ? '#E7F1F2' : '#fff', border:on ? '#0E7C86' : '#DCE4E7', fg:on ? '#0A5C64' : '#16232A',
+          subFg:on ? '#3F6A70' : '#7A8B91', pick:() => this.setState({ moveTo:a.id }) };
+      }),
+      moveNote:s.moveTo ? 'The move is recorded on the lead with your name on it.' : 'Pick who takes it.',
+      moveBlocked:!s.moveTo,
+      moveBg:s.moveTo ? '#0E7C86' : '#B4C2C6',
+      moveOpacity:s.moveTo ? '1' : '.75',
+      closeMove:() => this.setState({ move:null, moveTo:null }),
+      confirmMove:() => {
+        if (!s.moveTo || !moveAgent) return;
+        const to = rows.filter(a => a.id === s.moveTo)[0];
+        this.setState({ move:null, moveTo:null,
+          flash:moveAgent.lead.split(' · ')[0] + ' moved from ' + moveAgent.name + ' to ' + to.name + '. Attempt count carried over.' });
+      }
+    };
+  }
+}
+
+</script>
+</body>
+</html>

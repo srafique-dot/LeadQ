@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#F4F7F8; }
+  body { font-family:'IBM Plex Sans', system-ui, sans-serif; color:#16232A; -webkit-font-smoothing:antialiased; }
+  * { box-sizing:border-box; }
+  a { color:#0E7C86; text-decoration:none; }
+  a:hover { color:#0A5C64; text-decoration:underline; }
+  button { font-family:inherit; cursor:pointer; }
+  input, textarea, select { font-family:inherit; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-direction:column">
+
+  <header style="background:#fff; border-bottom:1px solid #E2E9EB; padding:{{ padHeader }}; display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+    <img src="./assets/umch-logo.png" alt="United Healthcare" style="height:24px; width:auto; display:block" />
+    <span style="font-size:15px; font-weight:600; letter-spacing:-.01em">Lead intake</span>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:9px">
+      <span style="width:26px; height:26px; border-radius:50%; background:#0E7C86; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center">{{ meInitials }}</span>
+      <div style="text-align:right">
+        <div style="font-size:13.5px; font-weight:600">{{ meName }}</div>
+        <div style="font-size:12px; color:#7A8B91">{{ meId }} · {{ meRole }}</div>
+      </div>
+    </div>
+  </header>
+
+  <div style="flex:1; padding:{{ padMain }}; max-width:900px; width:100%">
+
+    <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap">
+      <div style="min-width:0">
+        <h1 style="margin:0; font-size:26px; font-weight:600; letter-spacing:-.015em">Your leads today</h1>
+        <div style="font-size:14px; color:#5D7178; margin-top:6px">The call centre works these in arrival order. You see what happened, not the calling itself.</div>
+      </div>
+      <div style="margin-left:auto; display:flex; gap:9px; flex-wrap:wrap; width:{{ actionsWidth }}">
+        <button onClick="{{ openImport }}" style="flex:{{ btnFlex }}; background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:8px; padding:14px 16px; font-size:14px; font-weight:600; min-height:46px">Import a file</button>
+        <button onClick="{{ openEntry }}" style="flex:{{ btnFlex }}; background:#0E7C86; color:#fff; border:none; border-radius:8px; padding:14px 22px; font-size:15.5px; font-weight:700; min-height:46px">Add a lead</button>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:22px">
+      <sc-for list="{{ stats }}" as="st" hint-placeholder-count="4">
+        <div style="background:#fff; border:1px solid #E2E9EB; border-radius:9px; padding:15px 17px">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:{{ st.color }}; line-height:1">{{ st.value }}</div>
+          <div style="font-size:12.5px; color:#5D7178; margin-top:6px">{{ st.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ hasEntryDone }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#E9F6F1; border:1px solid #B7E0D0; border-radius:9px; padding:14px 16px; margin-top:16px; font-size:14px; color:#125C3D; font-weight:500">{{ entryDone }}</div>
+    </sc-if>
+
+    <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; margin-top:16px; overflow:hidden">
+      <div style="padding:14px 18px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:9px; flex-wrap:wrap">
+        <span style="font-size:14.5px; font-weight:600">Submitted by you</span>
+        <div style="margin-left:auto; display:flex; gap:6px">
+          <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+            <button onClick="{{ f.pick }}" style="background:{{ f.bg }}; color:{{ f.fg }}; border:1px solid {{ f.border }}; border-radius:16px; padding:6px 13px; font-size:12.5px; font-weight:600">{{ f.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <sc-for list="{{ rows }}" as="r" hint-placeholder-count="5">
+        <div style="padding:15px 18px; border-bottom:1px solid #F3F7F7; display:flex; align-items:center; gap:16px; flex-wrap:wrap">
+          <div style="min-width:0; flex:1 1 220px">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+              <span style="font-size:16px; font-weight:600; letter-spacing:-.01em">{{ r.name }}</span>
+              <sc-if value="{{ r.urgent }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:10.5px; font-weight:700; letter-spacing:.06em; background:#FBE9E7; color:#9C3B31; padding:2px 6px; border-radius:3px">URGENT</span>
+              </sc-if>
+              <sc-if value="{{ r.hasCohort }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:10.5px; font-weight:600; letter-spacing:.04em; background:#EDEBF6; color:#4A3E8F; padding:2px 6px; border-radius:3px">{{ r.cohort }}</span>
+              </sc-if>
+              <sc-if value="{{ r.merged }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:10.5px; font-weight:700; letter-spacing:.06em; background:#FDF0CE; color:#7E5F12; padding:2px 6px; border-radius:3px">MERGED</span>
+              </sc-if>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:13.5px; color:#5D7178; margin-top:4px">{{ r.phone }}</div>
+            <div style="font-size:13px; color:#7A8B91; margin-top:4px">{{ r.service }} · {{ r.facility }}</div>
+          </div>
+          <div style="flex:0 0 auto; text-align:right">
+            <div style="display:inline-flex; align-items:center; gap:7px; background:{{ r.pillBg }}; border:1px solid {{ r.pillBorder }}; border-radius:16px; padding:6px 12px">
+              <span style="width:7px; height:7px; border-radius:50%; background:{{ r.dot }}; display:block"></span>
+              <span style="font-size:13px; font-weight:600; color:{{ r.pillFg }}">{{ r.status }}</span>
+            </div>
+            <div style="font-size:12.5px; color:#7A8B91; margin-top:6px">{{ r.detail }}</div>
+          </div>
+        </div>
+      </sc-for>
+      <sc-if value="{{ noRows }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:34px 18px; text-align:center; font-size:14px; color:#7A8B91">Nothing here yet with that filter.</div>
+      </sc-if>
+    </div>
+
+    <div style="font-size:13px; color:#7A8B91; margin-top:14px; line-height:1.6">Booking and payment live in the ERP. This list shows the call outcome only.</div>
+  </div>
+</div>
+
+<sc-if value="{{ entryOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed; inset:0; background:rgba(15,28,34,.55); display:flex; align-items:{{ sheetAlign }}; justify-content:center; padding:{{ sheetPad }}; z-index:70; overflow-y:auto">
+    <div style="background:#fff; border-radius:{{ sheetRadius }}; width:100%; max-width:{{ sheetMax }}; min-height:{{ sheetMinH }}; box-shadow:0 24px 60px rgba(15,28,34,.28)">
+      <div style="padding:20px 24px 16px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:12px">
+        <div style="min-width:0">
+          <div style="font-size:19px; font-weight:600; letter-spacing:-.01em">Add a lead</div>
+          <div style="font-size:13px; color:#5D7178; margin-top:6px">Saved under <span style="font-weight:600; color:#2C3B42">{{ meName }}</span> · {{ meId }}</div>
+        </div>
+        <button onClick="{{ closeEntry }}" style="margin-left:auto; background:transparent; border:none; color:#7A8B91; font-size:20px; line-height:1; padding:0 4px">×</button>
+      </div>
+
+      <div style="padding:22px 24px; display:flex; flex-direction:column; gap:18px">
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">Phone number</span>
+          <input value="{{ efPhone }}" onChange="{{ setEfPhone }}" placeholder="+880 1XXX XXX XXX" style="width:100%; border:1.5px solid {{ phoneBorder }}; border-radius:7px; padding:14px; font-size:20px; font-family:'IBM Plex Mono',monospace; letter-spacing:-.01em; color:#16232A; background:#fff" />
+          <sc-if value="{{ phoneChecking }}" hint-placeholder-val="{{ false }}">
+            <span style="font-size:13px; color:#7A8B91">Keep typing — we check for duplicates as you go.</span>
+          </sc-if>
+          <sc-if value="{{ phoneClear }}" hint-placeholder-val="{{ false }}">
+            <span style="font-size:13px; color:#125C3D; font-weight:500">New number — no existing lead.</span>
+          </sc-if>
+        </label>
+
+        <sc-if value="{{ hasDup }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#FDF9EE; border:1px solid #EBDCB4; border-radius:9px; padding:16px 18px">
+            <div style="font-size:15.5px; font-weight:600; color:#7A4E06">This number is already in the system</div>
+            <div style="background:#fff; border:1px solid #EFE3C6; border-radius:7px; padding:13px 14px; margin-top:12px">
+              <div style="display:flex; align-items:baseline; gap:9px; flex-wrap:wrap">
+                <span style="font-size:16px; font-weight:600">{{ dupName }}</span>
+                <span style="font-family:'IBM Plex Mono',monospace; font-size:13.5px; color:#5D7178">{{ dupPhone }}</span>
+              </div>
+              <div style="font-size:13.5px; color:#5D7178; margin-top:6px; line-height:1.6">{{ dupService }} · {{ dupFacility }}<br />{{ dupStatus }} · added by {{ dupOwner }}</div>
+            </div>
+            <div style="font-size:14px; font-weight:600; color:#2C3B42; margin-top:16px">What do you want to do?</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:9px; margin-top:9px">
+              <button onClick="{{ pickMerge }}" style="text-align:left; background:{{ mergeBg }}; color:{{ mergeFg }}; border:1.5px solid {{ mergeBorder }}; border-radius:8px; padding:13px 14px; font-size:14.5px; font-weight:600">Same person — add to that lead</button>
+              <button onClick="{{ pickSeparate }}" style="text-align:left; background:{{ sepBg }}; color:{{ sepFg }}; border:1.5px solid {{ sepBorder }}; border-radius:8px; padding:13px 14px; font-size:14.5px; font-weight:600">Different person — create separate</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">Name</span>
+          <input value="{{ efName }}" onChange="{{ setEfName }}" placeholder="Full name as they gave it" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+        </label>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px">
+          <label style="display:flex; flex-direction:column; gap:7px; min-width:0">
+            <span style="font-size:14px; font-weight:600; color:#2C3B42">Which hospital</span>
+            <select value="{{ efFacility }}" onChange="{{ setEfFacility }}" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff">
+              <option value="">Choose one…</option>
+              <option value="UMCH Main">UMCH Main</option>
+              <option value="Medix Uttara">Medix Uttara</option>
+              <option value="MA Rashid Clinic">MA Rashid Clinic</option>
+            </select>
+          </label>
+          <label style="display:flex; flex-direction:column; gap:7px; min-width:0">
+            <span style="font-size:14px; font-weight:600; color:#2C3B42">Area</span>
+            <input value="{{ efArea }}" onChange="{{ setEfArea }}" placeholder="Where they live" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+          </label>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px">
+          <label style="display:flex; flex-direction:column; gap:7px; min-width:0">
+            <span style="font-size:14px; font-weight:600; color:#2C3B42">Which doctor did they ask for</span>
+            <input value="{{ efDoctor }}" onChange="{{ setEfDoctor }}" placeholder="e.g. Prof. A. Q. M. Mohsen" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+          </label>
+          <label style="display:flex; flex-direction:column; gap:7px; min-width:0">
+            <span style="font-size:14px; font-weight:600; color:#2C3B42">Department <span style="font-weight:500; color:#7A8B91">— if no doctor named</span></span>
+            <input value="{{ efDept }}" onChange="{{ setEfDept }}" placeholder="e.g. Gynaecology" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+          </label>
+        </div>
+
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">Which day do they want <span style="font-weight:500; color:#7A8B91">— optional</span></span>
+          <input type="date" value="{{ efWantDate }}" onChange="{{ setEfWantDate }}" style="max-width:220px; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+          <span style="font-size:13px; color:#7A8B91">{{ dateUnknownNote }}</span>
+        </label>
+
+        <div style="border:1px solid {{ urgentBorder }}; background:{{ urgentBg }}; border-radius:9px; padding:15px 16px">
+          <button onClick="{{ toggleUrgent }}" style="display:flex; align-items:center; gap:11px; background:transparent; border:none; padding:0; text-align:left; width:100%">
+            <span style="width:22px; height:22px; border-radius:5px; border:1.5px solid {{ urgentMarkBorder }}; background:{{ urgentMarkBg }}; color:#fff; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:0 0 auto">{{ urgentMark }}</span>
+            <span style="min-width:0">
+              <span style="display:block; font-size:14.5px; font-weight:600; color:{{ urgentLabelColor }}">Call this one first</span>
+              <span style="display:block; font-size:12.5px; color:#7A8B91; margin-top:3px; line-height:1.5">VIP, referred by a doctor, or genuinely time-critical. It jumps ahead of everything waiting.</span>
+            </span>
+          </button>
+          <sc-if value="{{ urgent }}" hint-placeholder-val="{{ false }}">
+            <label style="display:flex; flex-direction:column; gap:7px; margin-top:14px">
+              <span style="font-size:14px; font-weight:600; color:#2C3B42">Why <span style="font-weight:500; color:#9C3B31">— required</span></span>
+              <input value="{{ efUrgentReason }}" onChange="{{ setEfUrgentReason }}" placeholder="e.g. Board member’s mother, referred by Prof. Mohsen" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+              <span style="font-size:13px; color:#7A8B91; line-height:1.55">The agent sees this reason and your name on it. Team leads review how often urgent gets used.</span>
+            </label>
+          </sc-if>
+        </div>
+
+        <div style="border-top:1px solid #EDF2F3; padding-top:18px">
+          <button onClick="{{ toggleForOther }}" style="background:transparent; border:none; padding:0; color:#0A5C64; font-size:13.5px; font-weight:600">{{ forOtherLabel }}</button>
+          <sc-if value="{{ forOther }}" hint-placeholder-val="{{ false }}">
+            <label style="display:flex; flex-direction:column; gap:7px; margin-top:12px">
+              <span style="font-size:14px; font-weight:600; color:#2C3B42">Patient’s name</span>
+              <input value="{{ efPatient }}" onChange="{{ setEfPatient }}" placeholder="Who the appointment is for" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+              <span style="font-size:13px; color:#7A8B91">The agent calls the number above, but books under this name.</span>
+            </label>
+          </sc-if>
+        </div>
+
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">What they said <span style="font-weight:500; color:#7A8B91">— optional</span></span>
+          <textarea value="{{ efNote }}" onChange="{{ setEfNote }}" rows="2" placeholder="In their own words if you have it" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:14.5px; line-height:1.55; color:#16232A; resize:vertical; background:#fff"></textarea>
+        </label>
+      </div>
+
+      <div style="padding:18px 24px; border-top:1px solid #EDF2F3; background:#FAFCFC; border-radius:0 0 12px 12px; display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+        <button onClick="{{ saveEntry }}" disabled="{{ entryBlocked }}" style="flex:{{ btnFlex }}; min-height:48px; background:{{ entryBg }}; color:#fff; border:none; border-radius:8px; padding:14px 24px; font-size:15.5px; font-weight:700; opacity:{{ entryOpacity }}">{{ entrySaveLabel }}</button>
+        <div style="min-width:0; font-size:13.5px; line-height:1.55; color:{{ entryStatusColor }}">{{ entryStatus }}</div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ importOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed; inset:0; background:rgba(15,28,34,.55); display:flex; align-items:center; justify-content:center; padding:24px; z-index:70">
+    <div style="background:#fff; border-radius:12px; width:100%; max-width:480px; padding:24px; box-shadow:0 24px 60px rgba(15,28,34,.28)">
+      <div style="font-size:18px; font-weight:600">Import a file</div>
+      <div style="font-size:13.5px; color:#5D7178; margin-top:8px; line-height:1.6">One row per lead: name, phone, hospital, doctor or department. Every row is checked against existing numbers before anything is created — you review the duplicates before they go in.</div>
+
+      <label style="display:flex; flex-direction:column; gap:7px; margin-top:18px">
+        <span style="font-size:14px; font-weight:600; color:#2C3B42">Name this batch <span style="font-weight:500; color:#9C3B31">— required</span></span>
+        <input value="{{ cohort }}" onChange="{{ setCohort }}" placeholder="e.g. Sep health camp — Uttara" style="width:100%; border:1.5px solid {{ cohortBorder }}; border-radius:7px; padding:13px; font-size:15px; color:#16232A; background:#fff" />
+        <span style="font-size:13px; color:#7A8B91; line-height:1.55">Every row gets this tag, so you can see later how this batch performed against the rest.</span>
+      </label>
+
+      <div style="display:flex; gap:7px; flex-wrap:wrap; margin-top:10px">
+        <sc-for list="{{ cohortSuggestions }}" as="cs" hint-placeholder-count="3">
+          <button onClick="{{ cs.pick }}" style="background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:16px; padding:7px 12px; font-size:12.5px; font-weight:600">{{ cs.label }}</button>
+        </sc-for>
+      </div>
+
+      <div style="border:1.5px dashed {{ dropBorder }}; border-radius:9px; padding:26px; text-align:center; margin-top:16px; background:{{ dropBg }}">
+        <div style="font-size:14.5px; font-weight:600; color:{{ dropFg }}">{{ dropTitle }}</div>
+        <div style="font-size:13px; color:#7A8B91; margin-top:5px">{{ dropSub }}</div>
+      </div>
+
+      <div style="display:flex; gap:9px; margin-top:18px; flex-wrap:wrap">
+        <div style="min-width:0; flex:1 1 auto; font-size:13px; color:#7A8B91; align-self:center; line-height:1.5">{{ importNote }}</div>
+        <button onClick="{{ closeImport }}" style="background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:12px 16px; font-size:14px; font-weight:600; min-height:46px">Close</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:900}}">
+const ME = { id:'BD-007', name:'Ishrat Sultana', role:'Business development' };
+
+const MINE = [
+  { id:'L-24612', name:'Ummey Habiba Nahar', phone:'+880 1741 556 022', facility:'UMCH Main', service:'Prof. A.Q.M. Mohsen · for her son', status:'waiting', detail:'Urgent · first in the queue · 1m', merged:false, urgent:true, reason:'Referred by Prof. Mohsen himself', cohort:'', owner:'BD-007 Ishrat Sultana' },
+  { id:'L-24559', name:'Shamsun Nahar', phone:'+880 1521 330 774', facility:'Medix Uttara', service:'Dr. Syeda Nure Jannat', status:'booked', detail:'Booked + paid · 06 Sep', merged:false, urgent:false, cohort:'Sep health camp — Uttara', owner:'BD-007 Ishrat Sultana' },
+  { id:'L-24601', name:'Kamrul Hasan', phone:'+880 1713 908 221', facility:'UMCH Main', service:'Prof. A.Q.M. Mohsen', status:'waiting', detail:'In the queue · 4m', merged:false, urgent:false, cohort:'', owner:'BD-007 Ishrat Sultana' },
+  { id:'L-24588', name:'Sultana Razia', phone:'+880 1911 776 540', facility:'Medix Uttara', service:'Dr. Sumia Bari', status:'trying', detail:'Call 2 of 4 · no answer', merged:false, urgent:false, cohort:'Sep health camp — Uttara', owner:'BD-007 Ishrat Sultana' },
+  { id:'L-24572', name:'Rahima Khatun', phone:'+880 1711 204 556', facility:'Medix Uttara', service:'Cardiology', status:'trying', detail:'Merged with a Meta lead · call 1 of 4', merged:true, urgent:false, cohort:'Meta ads — Sep', owner:'BD-007 Ishrat Sultana' },
+  { id:'L-24540', name:'Jamil Uddin', phone:'+880 1611 200 913', facility:'UMCH Main', service:'General Medicine', status:'closed', detail:'Not interested — price · 05 Sep', merged:false, urgent:false, cohort:'Meta ads — Sep', owner:'BD-007 Ishrat Sultana' }
+];
+
+const STATUS = {
+  waiting:{ label:'Waiting for a call', dot:'#9A6206', bg:'#FDF9EE', border:'#EBDCB4', fg:'#7A4E06' },
+  trying:{ label:'Being called', dot:'#0E7C86', bg:'#E7F1F2', border:'#C5DEE0', fg:'#0A5C64' },
+  booked:{ label:'Booked', dot:'#1B7A4B', bg:'#E9F6F1', border:'#B7E0D0', fg:'#125C3D' },
+  closed:{ label:'Closed', dot:'#9C3B31', bg:'#FDF5F4', border:'#F0CFCA', fg:'#9C3B31' }
+};
+
+class Component extends DCLogic {
+  state = {
+    filter:'all', entryOpen:false, importOpen:false, entryMode:null, entryDone:'',
+    ef:{ name:'', phone:'', facility:'', doctor:'', dept:'', wantDate:'', patient:'', area:'', note:'', urgentReason:'' },
+    forOther:false, urgent:false, cohort:'', rows:MINE.slice(), narrow:false
+  };
+
+  componentDidMount() {
+    const measure = () => {
+      const w = document.documentElement.clientWidth || window.innerWidth || 0;
+      if (!w) return;
+      const n = w < 640;
+      if (n !== this.state.narrow) this.setState({ narrow:n });
+    };
+    this._fit = measure;
+    measure();
+    requestAnimationFrame(measure);
+    this._late = setTimeout(measure, 300);
+    if (window.ResizeObserver) {
+      this._ro = new ResizeObserver(measure);
+      this._ro.observe(document.documentElement);
+    }
+    window.addEventListener('resize', measure);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._fit);
+    if (this._ro) this._ro.disconnect();
+    clearTimeout(this._late);
+  }
+
+  digits(v) { return String(v || '').replace(/\D/g, '').slice(-10); }
+  dupMatch() {
+    const d = this.digits(this.state.ef.phone);
+    if (d.length < 7) return null;
+    return this.state.rows.filter(x => this.digits(x.phone) === d)[0] || null;
+  }
+  setEf(k, v) { this.setState(s => ({ ef:{ ...s.ef, [k]:v }, entryMode: k === 'phone' ? null : s.entryMode })); }
+
+  renderVals() {
+    const s = this.state, dup = this.dupMatch();
+    const blk = [];
+    if (!s.ef.name.trim()) blk.push('Write the caller’s name.');
+    else if (this.digits(s.ef.phone).length < 10) blk.push('Write the full phone number.');
+    else if (dup && !s.entryMode) blk.push('This number already exists — choose one of the two options above.');
+    else if (!s.ef.facility.trim()) blk.push('Choose which hospital.');
+    else if (!s.ef.doctor.trim() && !s.ef.dept.trim()) blk.push('Write the doctor they asked for, or the department if they did not name one.');
+    else if (s.forOther && !s.ef.patient.trim()) blk.push('Write the patient’s name.');
+    else if (s.urgent && !s.ef.urgentReason.trim()) blk.push('Say why this one jumps the queue.');
+
+    const shown = s.filter === 'all' ? s.rows
+      : s.filter === 'open' ? s.rows.filter(x => x.status === 'waiting' || x.status === 'trying')
+      : s.rows.filter(x => x.status === s.filter);
+
+    const nw = s.narrow;
+    return {
+      padHeader:nw ? '12px 16px' : '14px 28px',
+      padMain:nw ? '18px 16px 40px' : '26px 28px 48px',
+      actionsWidth:nw ? '100%' : 'auto',
+      btnFlex:nw ? '1 1 100%' : '0 0 auto',
+      sheetAlign:nw ? 'stretch' : 'flex-start',
+      sheetPad:nw ? '0' : '44px 20px',
+      sheetMax:nw ? 'none' : '620px',
+      sheetRadius:nw ? '0' : '12px',
+      sheetMinH:nw ? '100%' : '0',
+
+      meName:ME.name, meId:ME.id, meRole:ME.role,
+      meInitials:ME.name.split(' ').map(w => w[0]).join('').slice(0, 2),
+
+      stats:[
+        { value:s.rows.length, label:'Added by you today', color:'#16232A' },
+        { value:s.rows.filter(x => x.status === 'booked').length, label:'Booked', color:'#1B7A4B' },
+        { value:s.rows.filter(x => x.status === 'waiting' || x.status === 'trying').length, label:'Still being called', color:'#0E7C86' },
+        { value:s.rows.filter(x => x.urgent).length, label:'Marked urgent', color:'#9C3B31' },
+        { value:s.rows.filter(x => x.merged).length, label:'Duplicates caught', color:'#9A6206' }
+      ],
+
+      filters:[{ k:'all', label:'All' }, { k:'open', label:'Open' }, { k:'booked', label:'Booked' }, { k:'closed', label:'Closed' }].map(f => {
+        const on = s.filter === f.k;
+        return { label:f.label, bg:on ? '#0E7C86' : '#fff', fg:on ? '#fff' : '#5D7178', border:on ? '#0E7C86' : '#DCE4E7',
+          pick:() => this.setState({ filter:f.k }) };
+      }),
+
+      rows:shown.map(r => {
+        const st = STATUS[r.status];
+        return { name:r.name, phone:r.phone, facility:r.facility, service:r.service, merged:r.merged,
+          urgent:!!r.urgent, cohort:r.cohort || '', hasCohort:!!r.cohort,
+          status:st.label, dot:st.dot, pillBg:st.bg, pillBorder:st.border, pillFg:st.fg, detail:r.detail };
+      }),
+      noRows:shown.length === 0,
+
+      entryOpen:s.entryOpen,
+      openEntry:() => this.setState({ entryOpen:true, urgent:false,
+        ef:{ name:'', phone:'', facility:'', doctor:'', dept:'', wantDate:'', patient:'', area:'', note:'', urgentReason:'' },
+        entryMode:null, entryDone:'' }),
+      closeEntry:() => this.setState({ entryOpen:false }),
+      importOpen:s.importOpen,
+      openImport:() => this.setState({ importOpen:true }),
+      closeImport:() => this.setState({ importOpen:false }),
+
+      efName:s.ef.name, efPhone:s.ef.phone, efFacility:s.ef.facility,
+      efService:s.ef.service, efArea:s.ef.area, efNote:s.ef.note,
+      efDoctor:s.ef.doctor, efDept:s.ef.dept, efWantDate:s.ef.wantDate, efPatient:s.ef.patient,
+      setEfDoctor:e => this.setEf('doctor', e.target.value),
+      setEfDept:e => this.setEf('dept', e.target.value),
+      setEfWantDate:e => this.setEf('wantDate', e.target.value),
+      setEfPatient:e => this.setEf('patient', e.target.value),
+      urgent:s.urgent,
+      urgentMark:s.urgent ? '✓' : '',
+      urgentMarkBg:s.urgent ? '#9C3B31' : '#fff',
+      urgentMarkBorder:s.urgent ? '#9C3B31' : '#C9D6DA',
+      urgentBg:s.urgent ? '#FDF5F4' : '#fff',
+      urgentBorder:s.urgent ? '#F0CFCA' : '#EDF2F3',
+      urgentLabelColor:s.urgent ? '#9C3B31' : '#2C3B42',
+      efUrgentReason:s.ef.urgentReason,
+      setEfUrgentReason:e => this.setEf('urgentReason', e.target.value),
+      toggleUrgent:() => this.setState(x => ({ urgent:!x.urgent, ef:{ ...x.ef, urgentReason:'' } })),
+
+      cohort:s.cohort,
+      setCohort:e => this.setState({ cohort:e.target.value }),
+      cohortBorder:s.cohort.trim() ? '#B7E0D0' : '#DCE4E7',
+      cohortSuggestions:['Sep health camp — Uttara', 'Meta ads — Sep', 'Corporate: Brac Bank'].map(c => ({
+        label:c, pick:() => this.setState({ cohort:c })
+      })),
+      dropTitle:s.cohort.trim() ? 'Drop the file here' : 'Name the batch first',
+      dropSub:s.cohort.trim() ? 'CSV or Excel · every row tagged “' + s.cohort.trim() + '”' : 'The tag is what makes the batch reportable later',
+      dropBorder:s.cohort.trim() ? '#C9D6DA' : '#E2E9EB',
+      dropBg:s.cohort.trim() ? '#fff' : '#FAFCFC',
+      dropFg:s.cohort.trim() ? '#16232A' : '#9AA9AE',
+      importNote:s.cohort.trim() ? 'Imported rows go to the call centre in arrival order — not ahead of urgent leads.' : '',
+
+      forOther:s.forOther,
+      forOtherLabel:s.forOther ? 'The caller is the patient' : 'This booking is for someone else',
+      toggleForOther:() => this.setState(x => ({ forOther:!x.forOther, ef:{ ...x.ef, patient:'' } })),
+      dateUnknownNote:s.ef.wantDate ? '' : 'Leave it empty if they did not say — you can add it later.',
+      setEfName:e => this.setEf('name', e.target.value),
+      setEfPhone:e => this.setEf('phone', e.target.value),
+      setEfFacility:e => this.setEf('facility', e.target.value),
+      setEfService:e => this.setEf('service', e.target.value),
+      setEfArea:e => this.setEf('area', e.target.value),
+      setEfNote:e => this.setEf('note', e.target.value),
+
+      phoneChecking:this.digits(s.ef.phone).length > 0 && this.digits(s.ef.phone).length < 7,
+      phoneClear:this.digits(s.ef.phone).length >= 7 && !dup,
+      phoneBorder:dup ? '#E0C98F' : this.digits(s.ef.phone).length >= 7 ? '#B7E0D0' : '#DCE4E7',
+      hasDup:!!dup,
+      dupName:dup ? dup.name : '', dupPhone:dup ? dup.phone : '',
+      dupFacility:dup ? dup.facility : '', dupService:dup ? dup.service : '',
+      dupStatus:dup ? STATUS[dup.status].label + ' · ' + dup.detail : '',
+      dupOwner:dup ? dup.owner : '',
+      mergeBg:s.entryMode === 'merge' ? '#0E7C86' : '#fff',
+      mergeFg:s.entryMode === 'merge' ? '#fff' : '#16232A',
+      mergeBorder:s.entryMode === 'merge' ? '#0E7C86' : '#DCE4E7',
+      sepBg:s.entryMode === 'separate' ? '#0E7C86' : '#fff',
+      sepFg:s.entryMode === 'separate' ? '#fff' : '#16232A',
+      sepBorder:s.entryMode === 'separate' ? '#0E7C86' : '#DCE4E7',
+      pickMerge:() => this.setState({ entryMode:'merge' }),
+      pickSeparate:() => this.setState({ entryMode:'separate' }),
+
+      entryBlocked:blk.length > 0,
+      entryBg:blk.length ? '#B4C2C6' : '#0E7C86',
+      entryOpacity:blk.length ? '.75' : '1',
+      entryStatus:blk.length ? blk[0]
+        : dup && s.entryMode === 'merge' ? 'Adds this enquiry to ' + dup.name + ' — no new card for the agent.'
+        : s.urgent ? 'Goes to the front of the queue — the next free agent gets it.'
+        : 'Goes to the call centre with a 5 minute call target.',
+      entryStatusColor:blk.length ? '#9C3B31' : '#7A8B91',
+      entrySaveLabel:dup && s.entryMode === 'merge' ? 'Add to existing lead' : 'Create lead',
+      entryDone:s.entryDone, hasEntryDone:!!s.entryDone,
+      saveEntry:() => {
+        if (blk.length) return;
+        const merge = dup && s.entryMode === 'merge';
+        this.setState(x => ({
+          entryOpen:false,
+          entryDone: merge
+            ? 'Added to ' + dup.name + ' — the agent still sees one lead. Logged against ' + ME.id + '.'
+            : s.urgent
+              ? s.ef.name + ' is first in the queue — marked urgent by ' + ME.id + ' ' + ME.name
+              : s.ef.name + ' is in the queue · created by ' + ME.id + ' ' + ME.name,
+          rows: merge ? x.rows.map(r => r === dup ? { ...r, merged:true } : r)
+            : [{ id:'L-NEW', name:s.ef.name, phone:s.ef.phone, facility:s.ef.facility,
+                service:(s.ef.doctor || s.ef.dept) + (s.ef.patient ? ' · for ' + s.ef.patient : ''),
+                status:'waiting', detail:s.urgent ? 'Urgent · first in the queue · just now' : 'In the queue · just now',
+                merged:false, urgent:s.urgent, reason:s.ef.urgentReason, cohort:'',
+                owner:ME.id + ' ' + ME.name }].concat(x.rows),
+          urgent:false,
+          ef:{ name:'', phone:'', facility:'', doctor:'', dept:'', wantDate:'', patient:'', area:'', note:'', urgentReason:'' },
+          entryMode:null
+        }));
+      }
+    };
+  }
+}
+
+</script>
+</body>
+</html>

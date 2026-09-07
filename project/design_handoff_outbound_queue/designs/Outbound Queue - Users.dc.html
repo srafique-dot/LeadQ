@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#F4F7F8; }
+  body { font-family:'IBM Plex Sans', system-ui, sans-serif; color:#16232A; -webkit-font-smoothing:antialiased; }
+  * { box-sizing:border-box; }
+  a { color:#0E7C86; text-decoration:none; }
+  a:hover { color:#0A5C64; text-decoration:underline; }
+  button { font-family:inherit; cursor:pointer; }
+  input, select { font-family:inherit; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-direction:column">
+
+  <header style="background:#fff; border-bottom:1px solid #E2E9EB; padding:14px 28px; display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+    <img src="./assets/umch-logo.png" alt="United Healthcare" style="height:24px; width:auto; display:block" />
+    <span style="font-size:15px; font-weight:600; letter-spacing:-.01em">People &amp; access</span>
+    <div style="margin-left:auto; display:flex; align-items:center; gap:9px">
+      <span style="width:26px; height:26px; border-radius:50%; background:#0E7C86; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center">{{ meInitials }}</span>
+      <div style="text-align:right">
+        <div style="font-size:13.5px; font-weight:600">{{ meName }}</div>
+        <div style="font-size:12px; color:#7A8B91">{{ meId }} · {{ meRoleLabel }}</div>
+      </div>
+    </div>
+  </header>
+
+  <div style="flex:1; padding:26px 28px 48px; max-width:1040px; width:100%">
+
+    <div style="display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap">
+      <div style="min-width:0">
+        <h1 style="margin:0; font-size:26px; font-weight:600; letter-spacing:-.015em">Who can sign in</h1>
+        <div style="font-size:14px; color:#5D7178; margin-top:6px">{{ scopeNote }}</div>
+      </div>
+      <div style="margin-left:auto">
+        <button onClick="{{ openAdd }}" style="background:#0E7C86; color:#fff; border:none; border-radius:8px; padding:13px 22px; font-size:15.5px; font-weight:700">Add a person</button>
+      </div>
+    </div>
+
+    <sc-if value="{{ hasFlash }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#E9F6F1; border:1px solid #B7E0D0; border-radius:9px; padding:14px 16px; margin-top:18px; font-size:14px; color:#125C3D; font-weight:500">{{ flash }}</div>
+    </sc-if>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:20px">
+      <sc-for list="{{ stats }}" as="st" hint-placeholder-count="4">
+        <div style="background:#fff; border:1px solid #E2E9EB; border-radius:9px; padding:15px 17px">
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:26px; font-weight:600; color:{{ st.color }}; line-height:1">{{ st.value }}</div>
+          <div style="font-size:12.5px; color:#5D7178; margin-top:6px">{{ st.label }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="background:#fff; border:1px solid #E2E9EB; border-radius:10px; margin-top:16px; overflow:hidden">
+      <div style="padding:14px 18px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+        <span style="font-size:14.5px; font-weight:600">Accounts</span>
+        <div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap">
+          <sc-for list="{{ filters }}" as="f" hint-placeholder-count="4">
+            <button onClick="{{ f.pick }}" style="background:{{ f.bg }}; color:{{ f.fg }}; border:1px solid {{ f.border }}; border-radius:16px; padding:6px 13px; font-size:12.5px; font-weight:600">{{ f.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-for list="{{ people }}" as="p" hint-placeholder-count="6">
+        <div style="padding:15px 18px; border-bottom:1px solid #F3F7F7; display:flex; align-items:center; gap:16px; flex-wrap:wrap; opacity:{{ p.opacity }}">
+          <div style="min-width:0; flex:1 1 250px">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+              <span style="font-size:16px; font-weight:600; letter-spacing:-.01em">{{ p.name }}</span>
+              <span style="font-size:10.5px; font-weight:700; letter-spacing:.06em; background:{{ p.roleBg }}; color:{{ p.roleFg }}; padding:2px 6px; border-radius:3px">{{ p.roleTag }}</span>
+              <sc-if value="{{ p.disabled }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:10.5px; font-weight:700; letter-spacing:.06em; background:#F0F3F4; color:#7A8B91; padding:2px 6px; border-radius:3px">NO ACCESS</span>
+              </sc-if>
+            </div>
+            <div style="font-family:'IBM Plex Mono',monospace; font-size:13.5px; color:#5D7178; margin-top:4px">{{ p.id }}</div>
+            <div style="font-size:13px; color:#7A8B91; margin-top:4px">{{ p.meta }}</div>
+          </div>
+          <div style="flex:0 0 auto; display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+            <sc-if value="{{ p.mustSet }}" hint-placeholder-val="{{ false }}">
+              <span style="font-size:12.5px; font-weight:600; color:#7A4E06; background:#FDF9EE; border:1px solid #EBDCB4; border-radius:16px; padding:6px 12px">Has not signed in yet</span>
+            </sc-if>
+            <sc-if value="{{ canManage }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ p.reset }}" style="background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:9px 14px; font-size:13.5px; font-weight:600">Reset password</button>
+              <button onClick="{{ p.toggle }}" style="background:#fff; border:1px solid {{ p.toggleBorder }}; color:{{ p.toggleFg }}; border-radius:7px; padding:9px 14px; font-size:13.5px; font-weight:600">{{ p.toggleLabel }}</button>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+
+      <sc-if value="{{ noPeople }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:34px 18px; text-align:center; font-size:14px; color:#7A8B91">Nobody here with that filter.</div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ readOnly }}" hint-placeholder-val="{{ false }}">
+      <div style="background:#fff; border:1px solid #E2E9EB; border-radius:9px; padding:15px 17px; margin-top:16px; font-size:13.5px; color:#5D7178; line-height:1.6">You can see the list but not change it. Passwords, roles and access are handled by a superadmin.</div>
+    </sc-if>
+
+    <div style="font-size:13px; color:#7A8B91; margin-top:14px; line-height:1.6">Passwords are generated here and shown once. Nobody — including a superadmin — can read an existing password back.</div>
+  </div>
+</div>
+
+<sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed; inset:0; background:rgba(15,28,34,.55); display:flex; align-items:flex-start; justify-content:center; padding:44px 20px; z-index:70; overflow-y:auto">
+    <div style="background:#fff; border-radius:12px; width:100%; max-width:560px; box-shadow:0 24px 60px rgba(15,28,34,.28)">
+      <div style="padding:20px 24px 16px; border-bottom:1px solid #EDF2F3; display:flex; align-items:center; gap:12px">
+        <div style="min-width:0">
+          <div style="font-size:19px; font-weight:600; letter-spacing:-.01em">Add a person</div>
+          <div style="font-size:13px; color:#5D7178; margin-top:6px">They sign in with the employee ID and the password below.</div>
+        </div>
+        <button onClick="{{ closeAdd }}" style="margin-left:auto; background:transparent; border:none; color:#7A8B91; font-size:20px; line-height:1; padding:0 4px">×</button>
+      </div>
+
+      <div style="padding:22px 24px; display:flex; flex-direction:column; gap:18px">
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">Employee ID</span>
+          <input value="{{ nfId }}" onChange="{{ setNfId }}" placeholder="BD-014" style="width:100%; max-width:240px; border:1.5px solid {{ idBorder }}; border-radius:7px; padding:13px; font-size:18px; font-family:'IBM Plex Mono',monospace; color:#16232A; background:#fff" />
+          <span style="font-size:13px; color:{{ idNoteColor }}">{{ idNote }}</span>
+        </label>
+
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">Full name</span>
+          <input value="{{ nfName }}" onChange="{{ setNfName }}" placeholder="As it appears on the roster" style="width:100%; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff" />
+        </label>
+
+        <div>
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">What they do</span>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:9px; margin-top:9px">
+            <sc-for list="{{ roleChoices }}" as="rc" hint-placeholder-count="4">
+              <button onClick="{{ rc.pick }}" style="text-align:left; background:{{ rc.bg }}; border:1.5px solid {{ rc.border }}; border-radius:8px; padding:12px 14px">
+                <div style="font-size:14.5px; font-weight:600; color:{{ rc.fg }}">{{ rc.label }}</div>
+                <div style="font-size:12.5px; margin-top:4px; line-height:1.5; color:{{ rc.subFg }}">{{ rc.desc }}</div>
+              </button>
+            </sc-for>
+          </div>
+        </div>
+
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">Which hospital</span>
+          <select value="{{ nfFacility }}" onChange="{{ setNfFacility }}" style="width:100%; max-width:300px; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:15px; color:#16232A; background:#fff">
+            <option value="">Choose one…</option>
+            <option value="UMCH Main">UMCH Main</option>
+            <option value="Medix Uttara">Medix Uttara</option>
+            <option value="MA Rashid Clinic">MA Rashid Clinic</option>
+            <option value="All sites">All sites</option>
+          </select>
+        </label>
+
+        <label style="display:flex; flex-direction:column; gap:7px">
+          <span style="font-size:14px; font-weight:600; color:#2C3B42">The number they call from <span style="font-weight:500; color:#7A8B91">— {{ extRequirement }}</span></span>
+          <input value="{{ nfExt }}" onChange="{{ setNfExt }}" placeholder="{{ extPlaceholder }}" style="width:100%; max-width:260px; border:1px solid #DCE4E7; border-radius:7px; padding:12px 13px; font-size:16px; font-family:'IBM Plex Mono',monospace; color:#16232A; background:#fff" />
+          <span style="font-size:13px; color:#7A8B91; line-height:1.55">{{ extNote }}</span>
+        </label>
+
+        <div style="background:#FAFCFC; border:1px solid #E2E9EB; border-radius:9px; padding:16px 18px">
+          <div style="font-size:14px; font-weight:600; color:#2C3B42">First password</div>
+          <div style="display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap">
+            <span style="font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; letter-spacing:.04em; color:#16232A">{{ nfPassword }}</span>
+            <button onClick="{{ regen }}" style="background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:8px 13px; font-size:13px; font-weight:600">Generate another</button>
+          </div>
+          <div style="font-size:13px; color:#7A8B91; margin-top:10px; line-height:1.6">Give it to them directly. They are asked to change it the first time they sign in, and this screen will not show it again.</div>
+        </div>
+      </div>
+
+      <div style="padding:18px 24px; border-top:1px solid #EDF2F3; background:#FAFCFC; border-radius:0 0 12px 12px; display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+        <button onClick="{{ saveAdd }}" disabled="{{ addBlocked }}" style="background:{{ addBg }}; color:#fff; border:none; border-radius:8px; padding:14px 24px; font-size:15.5px; font-weight:700; opacity:{{ addOpacity }}">Create account</button>
+        <div style="min-width:0; font-size:13.5px; line-height:1.55; color:{{ addStatusColor }}">{{ addStatus }}</div>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ resetOpen }}" hint-placeholder-val="{{ false }}">
+  <div style="position:fixed; inset:0; background:rgba(15,28,34,.55); display:flex; align-items:center; justify-content:center; padding:24px; z-index:70">
+    <div style="background:#fff; border-radius:12px; width:100%; max-width:460px; padding:24px; box-shadow:0 24px 60px rgba(15,28,34,.28)">
+      <div style="font-size:19px; font-weight:600; letter-spacing:-.01em">{{ resetTitle }}</div>
+      <div style="font-size:13.5px; color:#5D7178; margin-top:8px; line-height:1.6">{{ resetBody }}</div>
+
+      <sc-if value="{{ resetDone }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#FAFCFC; border:1px solid #E2E9EB; border-radius:9px; padding:16px 18px; margin-top:16px">
+          <div style="font-size:13px; color:#5D7178">New password</div>
+          <div style="font-family:'IBM Plex Mono',monospace; font-size:22px; font-weight:600; letter-spacing:.04em; margin-top:6px">{{ resetPassword }}</div>
+          <div style="font-size:13px; color:#7A8B91; margin-top:10px; line-height:1.6">Shown once. Their old password stopped working just now.</div>
+        </div>
+      </sc-if>
+
+      <div style="display:flex; gap:9px; margin-top:20px; flex-wrap:wrap">
+        <button onClick="{{ closeReset }}" style="margin-left:auto; background:#fff; border:1px solid #DCE4E7; color:#5D7178; border-radius:7px; padding:11px 16px; font-size:14px; font-weight:600">{{ resetCloseLabel }}</button>
+        <sc-if value="{{ resetPending }}" hint-placeholder-val="{{ true }}">
+          <button onClick="{{ confirmReset }}" style="background:#0E7C86; color:#fff; border:none; border-radius:7px; padding:11px 18px; font-size:14px; font-weight:700">Reset it</button>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1180,&quot;height&quot;:900},&quot;viewerRole&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;superadmin&quot;,&quot;admin&quot;,&quot;agent&quot;,&quot;requester&quot;],&quot;default&quot;:&quot;superadmin&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Access&quot;},&quot;passwordLength&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:8,&quot;min&quot;:6,&quot;max&quot;:12,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Access&quot;},&quot;showLastActive&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;List&quot;}}">
+const ROLES = {
+  requester:{ tag:'REQUESTER', label:'Adds leads', desc:'Business development, marketing, front desk. Submits leads and sees their outcome.', bg:'#E7F1F2', fg:'#0A5C64' },
+  agent:{ tag:'AGENT', label:'Calls leads', desc:'Call centre. Works the queue and logs what happened on each call.', bg:'#EDEBF6', fg:'#4A3E8F' },
+  admin:{ tag:'ADMIN', label:'Runs the queue', desc:'Sees every lead, reassigns work, pulls reports. Cannot change passwords.', bg:'#FDF9EE', fg:'#7A4E06' },
+  superadmin:{ tag:'SUPERADMIN', label:'Manages people', desc:'Everything an admin can do, plus creating accounts and resetting passwords.', bg:'#E9F6F1', fg:'#125C3D' }
+};
+
+const SEED = [
+  { id:'BD-007', name:'Ishrat Sultana', role:'requester', facility:'Medix Uttara', ext:'', last:'Active 4m ago', disabled:false, mustSet:false },
+  { id:'BD-011', name:'Tanvir Ahmed', role:'requester', facility:'UMCH Main', ext:'', last:'Active 2h ago', disabled:false, mustSet:false },
+  { id:'CC-002', name:'Nusrat Jahan', role:'agent', facility:'UMCH Main', ext:'2102', last:'Lead open now', disabled:false, mustSet:false },
+  { id:'CC-005', name:'Rakib Hossain', role:'agent', facility:'UMCH Main', ext:'2105', last:'Active 11m ago', disabled:false, mustSet:false },
+  { id:'CC-009', name:'Farhana Islam', role:'agent', facility:'Medix Uttara', ext:'', last:'Never signed in', disabled:false, mustSet:true },
+  { id:'OP-001', name:'Shahriar Kabir', role:'admin', facility:'All sites', ext:'2001', last:'Active yesterday', disabled:false, mustSet:false },
+  { id:'CC-003', name:'Moshiur Rahman', role:'agent', facility:'MA Rashid Clinic', ext:'2103', last:'Left the team · 12 Aug', disabled:true, mustSet:false },
+  { id:'IT-001', name:'Sabbir Chowdhury', role:'superadmin', facility:'All sites', ext:'', last:'Active 30m ago', disabled:false, mustSet:false }
+];
+
+class Component extends DCLogic {
+  state = {
+    filter:'all', people:SEED.slice(), flash:'',
+    addOpen:false, nf:{ id:'', name:'', role:'', facility:'', ext:'' }, nfPassword:'',
+    reset:null, resetPassword:''
+  };
+
+  gen(len) {
+    const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ', b = 'abcdefghijkmnopqrstuvwxyz', d = '23456789';
+    const pool = a + b + d;
+    let out = a[Math.floor(Math.random() * a.length)] + d[Math.floor(Math.random() * d.length)];
+    while (out.length < Math.max(6, len)) out += pool[Math.floor(Math.random() * pool.length)];
+    return out.slice(0, 4) + '-' + out.slice(4);
+  }
+  setNf(k, v) { this.setState(s => ({ nf:{ ...s.nf, [k]:v } })); }
+
+  renderVals() {
+    const s = this.state;
+    const me = this.props.viewerRole ?? 'superadmin';
+    const canManage = me === 'superadmin';
+    const pwLen = this.props.passwordLength ?? 8;
+    const showLast = this.props.showLastActive ?? true;
+    const idTaken = s.people.some(p => p.id.toUpperCase() === s.nf.id.trim().toUpperCase());
+    const idOk = /^[A-Za-z]{2}-\d{3}$/.test(s.nf.id.trim());
+
+    const blk = [];
+    if (!s.nf.id.trim()) blk.push('Write their employee ID.');
+    else if (!idOk) blk.push('Employee ID looks like BD-014 — two letters, a dash, three digits.');
+    else if (idTaken) blk.push('That employee ID already has an account.');
+    else if (!s.nf.name.trim()) blk.push('Write their full name.');
+    else if (!s.nf.role) blk.push('Pick what they do.');
+    else if (!s.nf.facility) blk.push('Choose which hospital.');
+    else if (s.nf.role === 'agent' && !s.nf.ext.trim()) blk.push('Agents need the number they call from — the monthly call file is matched on it.');
+
+    const shown = s.filter === 'all' ? s.people
+      : s.filter === 'off' ? s.people.filter(p => p.disabled)
+      : s.people.filter(p => !p.disabled && (s.filter === 'staff' ? p.role === 'requester' || p.role === 'agent' : p.role === 'admin' || p.role === 'superadmin'));
+
+    const target = s.reset ? s.people.filter(p => p.id === s.reset.id)[0] : null;
+
+    return {
+      meName:'Sabbir Chowdhury', meId:'IT-001', meInitials:'SC',
+      meRoleLabel:ROLES[me] ? ROLES[me].label : 'Manages people',
+      canManage, readOnly:!canManage,
+      scopeNote:canManage
+        ? 'Create accounts, set what someone can do, and reset a password when they lose it.'
+        : 'Everyone with access to the queue. Only a superadmin can add people or reset passwords.',
+
+      stats:[
+        { value:s.people.filter(p => !p.disabled).length, label:'Active accounts', color:'#16232A' },
+        { value:s.people.filter(p => p.role === 'agent' && !p.disabled).length, label:'Call centre agents', color:'#0E7C86' },
+        { value:s.people.filter(p => p.mustSet).length, label:'Never signed in', color:'#9A6206' },
+        { value:s.people.filter(p => p.role === 'agent' && !p.disabled && !p.ext).length, label:'Agents with no calling number', color:'#9C3B31' },
+        { value:s.people.filter(p => p.disabled).length, label:'Access removed', color:'#9C3B31' }
+      ],
+
+      filters:[{ k:'all', label:'Everyone' }, { k:'staff', label:'Requesters & agents' }, { k:'admins', label:'Admins' }, { k:'off', label:'No access' }].map(f => {
+        const on = s.filter === f.k;
+        return { label:f.label, bg:on ? '#0E7C86' : '#fff', fg:on ? '#fff' : '#5D7178', border:on ? '#0E7C86' : '#DCE4E7', pick:() => this.setState({ filter:f.k }) };
+      }),
+
+      people:shown.map(p => {
+        const r = ROLES[p.role];
+        return {
+          id:p.id, name:p.name, roleTag:r.tag, roleBg:r.bg, roleFg:r.fg,
+          meta:(r.label + ' · ' + p.facility
+            + (p.ext ? ' · calls from ' + p.ext : p.role === 'agent' ? ' · no calling number set' : '')
+            + (showLast ? ' · ' + p.last : '')),
+          disabled:p.disabled, mustSet:p.mustSet, opacity:p.disabled ? '.6' : '1',
+          toggleLabel:p.disabled ? 'Restore access' : 'Remove access',
+          toggleFg:p.disabled ? '#0A5C64' : '#9C3B31',
+          toggleBorder:p.disabled ? '#C5DEE0' : '#F0CFCA',
+          reset:() => this.setState({ reset:{ id:p.id, stage:'confirm' }, resetPassword:'' }),
+          toggle:() => this.setState(x => ({
+            people:x.people.map(q => q.id === p.id ? { ...q, disabled:!q.disabled } : q),
+            flash:p.disabled ? p.name + ' can sign in again.' : p.name + ' can no longer sign in. Their logged calls stay on record.'
+          }))
+        };
+      }),
+      noPeople:shown.length === 0,
+      flash:s.flash, hasFlash:!!s.flash,
+
+      addOpen:s.addOpen,
+      openAdd:() => this.setState({ addOpen:true, nf:{ id:'', name:'', role:'', facility:'', ext:'' }, nfPassword:this.gen(pwLen), flash:'' }),
+      closeAdd:() => this.setState({ addOpen:false }),
+      nfId:s.nf.id, nfName:s.nf.name, nfFacility:s.nf.facility, nfPassword:s.nfPassword,
+      nfExt:s.nf.ext,
+      setNfExt:e => this.setNf('ext', e.target.value),
+      extRequirement:s.nf.role === 'agent' ? 'required for agents' : 'optional',
+      extPlaceholder:s.nf.role === 'agent' ? '2107' : 'extension or mobile',
+      extNote:s.nf.role === 'agent'
+        ? 'Desk extension, or their mobile if they dial from their own phone. The monthly call file has no names in it — this is what ties a call to this person.'
+        : 'Only needed for people who place calls.',
+      setNfId:e => this.setNf('id', e.target.value),
+      setNfName:e => this.setNf('name', e.target.value),
+      setNfFacility:e => this.setNf('facility', e.target.value),
+      regen:() => this.setState({ nfPassword:this.gen(pwLen) }),
+      idBorder:!s.nf.id.trim() ? '#DCE4E7' : (idOk && !idTaken) ? '#B7E0D0' : '#E0C98F',
+      idNote:!s.nf.id.trim() ? 'This is what they type to sign in.'
+        : idTaken ? 'Already taken — check the roster.'
+        : idOk ? 'Available.' : 'Two letters, a dash, three digits.',
+      idNoteColor:!s.nf.id.trim() ? '#7A8B91' : (idOk && !idTaken) ? '#125C3D' : '#7A4E06',
+
+      roleChoices:['requester', 'agent', 'admin', 'superadmin'].map(k => {
+        const on = s.nf.role === k, r = ROLES[k];
+        return { label:r.label, desc:r.desc, bg:on ? '#E7F1F2' : '#fff', border:on ? '#0E7C86' : '#DCE4E7',
+          fg:on ? '#0A5C64' : '#16232A', subFg:on ? '#3F6A70' : '#7A8B91', pick:() => this.setNf('role', k) };
+      }),
+
+      addBlocked:blk.length > 0,
+      addBg:blk.length ? '#B4C2C6' : '#0E7C86',
+      addOpacity:blk.length ? '.75' : '1',
+      addStatus:blk.length ? blk[0] : 'They can sign in straight away with this password.',
+      addStatusColor:blk.length ? '#9C3B31' : '#7A8B91',
+      saveAdd:() => {
+        if (blk.length) return;
+        this.setState(x => ({
+          addOpen:false,
+          flash:x.nf.name + ' (' + x.nf.id.trim().toUpperCase() + ') can sign in — password ' + x.nfPassword + '. Write it down now.',
+          people:[{ id:x.nf.id.trim().toUpperCase(), name:x.nf.name, role:x.nf.role, facility:x.nf.facility,
+            ext:x.nf.ext.trim(), last:'Never signed in', disabled:false, mustSet:true }].concat(x.people)
+        }));
+      },
+
+      resetOpen:!!s.reset,
+      resetPending:!!s.reset && s.reset.stage === 'confirm',
+      resetDone:!!s.reset && s.reset.stage === 'done',
+      resetTitle:!target ? '' : s.reset.stage === 'done' ? 'Password reset for ' + target.name : 'Reset ' + target.name + '’s password?',
+      resetBody:!target ? '' : s.reset.stage === 'done'
+        ? 'Read it out to them. They will be asked to change it when they sign in.'
+        : 'Their current password stops working immediately and a new one is generated. Logged in this account under ' + 'IT-001' + '.',
+      resetPassword:s.resetPassword,
+      resetCloseLabel:!!s.reset && s.reset.stage === 'done' ? 'Done' : 'Cancel',
+      closeReset:() => this.setState({ reset:null, resetPassword:'' }),
+      confirmReset:() => this.setState(x => ({
+        reset:{ id:x.reset.id, stage:'done' }, resetPassword:this.gen(pwLen),
+        people:x.people.map(q => q.id === x.reset.id ? { ...q, mustSet:true, last:'Password reset just now' } : q)
+      }))
+    };
+  }
+}
+
+</script>
+</body>
+</html>
