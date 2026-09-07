@@ -1,0 +1,48 @@
+:root {
+  /* Colour */
+  --page-bg: #f4f7f8;
+  --surface: #ffffff;
+  --surface-subtle: #fafcfc;
+  --ink: #16232a;
+  --ink-secondary: #2c3b42;
+  --ink-muted: #5d7178;
+  --ink-faint: #7a8b91;
+  --ink-disabled: #9aa9ae;
+  --border: #e2e9eb;
+  --border-light: #edf2f3;
+  --border-light-2: #f3f7f7;
+  --border-input: #dce4e7;
+
+  --primary: #0e7c86;
+  --primary-dark: #0a5c64;
+  --primary-tint: #e7f1f2;
+  --primary-tint-border: #c5dee0;
+
+  --success: #1b7a4b;
+  --success-dark: #125c3d;
+  --success-tint: #e9f6f1;
+  --success-tint-border: #b7e0d0;
+
+  --warning: #9a6206;
+  --warning-dark: #7a4e06;
+  --warning-tint: #fdf9ee;
+  --warning-tint-border: #ebdcb4;
+
+  --danger: #9c3b31;
+  --danger-tint: #fdf5f4;
+  --danger-tint-border: #f0cfca;
+
+  --violet: #4a3e8f;
+  --violet-tint: #edebf6;
+
+  --merged-tint: #fdf0ce;
+  --merged-fg: #7e5f12;
+
+  --disabled-btn: #b4c2c6;
+
+  --shadow-modal: 0 24px 60px rgba(15, 28, 34, 0.28);
+  --overlay: rgba(15, 28, 34, 0.55);
+
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
