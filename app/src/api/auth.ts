@@ -21,11 +21,11 @@ const ROLE_LABEL: Record<Role, string> = {
 // Matches the mock accounts baked into the Claude Design handoff so the two
 // stay interchangeable during review (Outbound Queue - Sign in.dc.html).
 const SEED_ACCOUNTS: Account[] = [
-  { employeeId: "CC-002", name: "Nusrat Jahan", role: "agent", roleLabel: ROLE_LABEL.agent, password: "queue123", mustChangePassword: false },
-  { employeeId: "CC-009", name: "Farhana Islam", role: "agent", roleLabel: ROLE_LABEL.agent, password: "Kf7-r2mq", mustChangePassword: true },
-  { employeeId: "BD-007", name: "Ishrat Sultana", role: "requester", roleLabel: ROLE_LABEL.requester, password: "queue123", mustChangePassword: false },
-  { employeeId: "OP-001", name: "Shahriar Kabir", role: "admin", roleLabel: ROLE_LABEL.admin, password: "queue123", mustChangePassword: false },
-  { employeeId: "IT-001", name: "Sabbir Chowdhury", role: "superadmin", roleLabel: ROLE_LABEL.superadmin, password: "queue123", mustChangePassword: false },
+  { employeeId: "CC-002", name: "Nusrat Jahan", role: "agent", roleLabel: ROLE_LABEL.agent, password: "queue123", mustChangePassword: false, callingNumber: "2102", active: true, facility: "UMCH Main" },
+  { employeeId: "CC-009", name: "Farhana Islam", role: "agent", roleLabel: ROLE_LABEL.agent, password: "Kf7-r2mq", mustChangePassword: true, callingNumber: "", active: true, facility: "Medix Uttara" },
+  { employeeId: "BD-007", name: "Ishrat Sultana", role: "requester", roleLabel: ROLE_LABEL.requester, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "Medix Uttara" },
+  { employeeId: "OP-001", name: "Shahriar Kabir", role: "admin", roleLabel: ROLE_LABEL.admin, password: "queue123", mustChangePassword: false, callingNumber: "2001", active: true, facility: "All sites" },
+  { employeeId: "IT-001", name: "Sabbir Chowdhury", role: "superadmin", roleLabel: ROLE_LABEL.superadmin, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "All sites" },
 ];
 
 function loadAccounts(): Account[] {
@@ -41,6 +41,10 @@ function loadAccounts(): Account[] {
 
 function saveAccounts(accounts: Account[]) {
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
+}
+
+export function listAccounts(): Account[] {
+  return loadAccounts();
 }
 
 export function findAccount(employeeId: string): Account | undefined {
@@ -66,7 +70,7 @@ export function signIn(
   const id = employeeId.trim().toUpperCase();
   if (!id) return { ok: false, error: "empty_id" };
   const account = findAccount(id);
-  if (!account) return { ok: false, error: "unknown_id" };
+  if (!account || !account.active) return { ok: false, error: "unknown_id" };
   if (!password) return { ok: false, error: "empty_password" };
   if (password !== account.password) return { ok: false, error: "wrong_password" };
 
@@ -109,6 +113,66 @@ export function getCurrentUser(): Account | null {
 export function signOut() {
   sessionStorage.removeItem(SESSION_KEY);
   localStorage.removeItem(SESSION_KEY);
+}
+
+/** Unambiguous alphabet (no I/l/1/O/0), starts with a capital and a digit,
+ * hyphen inserted for readability. Shown once, never retrievable. */
+export function generatePassword(len = 8): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const digit = "23456789";
+  const pool = upper + lower + digit;
+  const pick = (s: string) => s[Math.floor(Math.random() * s.length)];
+  let out = pick(upper) + pick(digit);
+  while (out.length < Math.max(6, len)) out += pick(pool);
+  out = out.slice(0, len);
+  return out.slice(0, 4) + "-" + out.slice(4);
+}
+
+export interface NewAccountInput {
+  employeeId: string;
+  name: string;
+  role: Role;
+  facility: string;
+  callingNumber: string;
+}
+
+export function isValidEmployeeId(id: string): boolean {
+  return /^[A-Za-z]{2}-\d{3}$/.test(id.trim());
+}
+
+export function createAccount(input: NewAccountInput): { account: Account; password: string } {
+  const accounts = loadAccounts();
+  const password = generatePassword();
+  const account: Account = {
+    employeeId: input.employeeId.trim().toUpperCase(),
+    name: input.name.trim(),
+    role: input.role,
+    roleLabel: ROLE_LABEL[input.role],
+    password,
+    mustChangePassword: true,
+    callingNumber: input.callingNumber.trim(),
+    active: true,
+    facility: input.facility,
+  };
+  saveAccounts([account, ...accounts]);
+  return { account, password };
+}
+
+/** Two-step reset: current password stops working immediately, a new one is
+ * generated and shown once, and the account is forced to change it again. */
+export function resetPassword(employeeId: string): string {
+  const accounts = loadAccounts();
+  const password = generatePassword();
+  const next = accounts.map((a) => (a.employeeId === employeeId ? { ...a, password, mustChangePassword: true } : a));
+  saveAccounts(next);
+  return password;
+}
+
+/** Never deletes history — just blocks future sign-in. */
+export function setAccountActive(employeeId: string, active: boolean) {
+  const accounts = loadAccounts();
+  saveAccounts(accounts.map((a) => (a.employeeId === employeeId ? { ...a, active } : a)));
 }
 
 export function landingPathFor(role: Role): string {
