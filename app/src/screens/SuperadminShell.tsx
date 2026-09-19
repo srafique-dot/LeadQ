@@ -9,6 +9,14 @@ import { Users } from "./Users/Users";
 
 type Screen = "leads" | "queue" | "floor" | "people";
 
+const SCREEN_KEY = "umch.superadminTab";
+const VALID_SCREENS: Screen[] = ["leads", "queue", "floor", "people"];
+
+function loadStoredScreen(): Screen {
+  const stored = localStorage.getItem(SCREEN_KEY);
+  return VALID_SCREENS.includes(stored as Screen) ? (stored as Screen) : "people";
+}
+
 const TABS: { key: Screen; label: string }[] = [
   { key: "leads", label: "Leads" },
   { key: "queue", label: "Call queue" },
@@ -31,7 +39,12 @@ const TAB_FOR_ROLE: Record<Role, Screen> = {
  * needed to change to support it. */
 export function SuperadminShell() {
   const { realUser, viewAsId, setViewAs } = useAuth();
-  const [screen, setScreen] = useState<Screen>("people");
+  const [screen, setScreenState] = useState<Screen>(loadStoredScreen);
+
+  function setScreen(s: Screen) {
+    setScreenState(s);
+    localStorage.setItem(SCREEN_KEY, s);
+  }
 
   if (!realUser) return null;
 
