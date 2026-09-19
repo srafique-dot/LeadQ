@@ -381,7 +381,13 @@ export function Agent() {
                   <div className={styles.eyebrow}>They asked for</div>
                   <div className={styles.askLine}>{lead.doctor || lead.department || "General enquiry"}</div>
                   <div className={styles.chipsRow}>
-                    {lead.wantDate && <span className={`${styles.chip} ${styles.chipDate}`}>Wants {lead.wantDate}</span>}
+                    {(lead.wantDate || lead.preferredTime) && (
+                      <span className={`${styles.chip} ${styles.chipDate}`}>
+                        {lead.wantDate ? `Wants ${lead.wantDate}` : "Wants"}
+                        {lead.preferredTime ? ` · ${lead.preferredTime}` : ""}
+                      </span>
+                    )}
+                    {lead.email && <span className={`${styles.chip} ${styles.chipCohort}`}>{lead.email}</span>}
                     {lead.patientName && (
                       <span className={`${styles.chip} ${styles.chipPatient}`}>
                         Booking is for {lead.patientName} — not the person you are calling

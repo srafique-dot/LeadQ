@@ -60,6 +60,8 @@ export interface Lead {
   department: string;
   patientName: string;
   wantDate: string;
+  preferredTime: string;
+  email: string;
   note: string;
   status: LeadStatus;
   detail: string;
@@ -92,6 +94,8 @@ export interface NewLeadInput {
   department: string;
   patientName: string;
   wantDate: string;
+  preferredTime: string;
+  email: string;
   note: string;
   urgent: boolean;
   urgentReason: string;

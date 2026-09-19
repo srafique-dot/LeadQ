@@ -11,6 +11,12 @@ interface AddLeadModalProps {
 }
 
 const HOSPITALS = ["UMCH Main", "Medix Uttara", "MA Rashid Clinic"];
+const TIME_SLOTS = ["Morning", "Afternoon", "Evening"];
+const SOURCES = [
+  { value: "Manual entry", label: "Phone-in / walk-in / ফোন বা সরাসরি" },
+  { value: "Website LP", label: "Website enquiry / ওয়েবসাইট" },
+  { value: "Door2Door Campaign", label: "Door-to-door campaign / ডোর টু ডোর ক্যাম্পেইন" },
+];
 
 type EntryMode = "merge" | "separate" | null;
 
@@ -25,6 +31,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [doctor, setDoctor] = useState("");
   const [dept, setDept] = useState("");
   const [wantDate, setWantDate] = useState("");
+  const [preferredTime, setPreferredTime] = useState("");
+  const [email, setEmail] = useState("");
+  const [source, setSource] = useState(SOURCES[0].value);
   const [urgent, setUrgent] = useState(false);
   const [urgentReason, setUrgentReason] = useState("");
   const [forOther, setForOther] = useState(false);
@@ -71,9 +80,10 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
       onSaved(`Added to ${dup.name} — the agent still sees one lead. Logged against ${currentUser.employeeId}.`);
     } else {
       const created = createLead(
-        { name, phone, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, note, urgent, urgentReason, cohort: "" },
+        { name, phone, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: "" },
         currentUser.employeeId,
         currentUser.name,
+        source,
       );
       onSaved(
         urgent
@@ -101,6 +111,17 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
         </div>
 
         <div className={styles.modalBody}>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>How did this lead come in? / এই লিড কীভাবে এসেছে</span>
+            <select value={source} onChange={(e) => setSource(e.target.value)} className={styles.textInput}>
+              {SOURCES.map((s) => (
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label className={styles.field}>
             <span className={styles.fieldLabel}>Phone number / ফোন নম্বর</span>
             <input
@@ -172,6 +193,19 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             />
           </label>
 
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>
+              Email / ইমেইল <span className={styles.muted}>— optional / ঐচ্ছিক</span>
+            </span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              className={styles.textInput}
+            />
+          </label>
+
           <div className={styles.twoCol}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>Which hospital / কোন হাসপাতাল</span>
@@ -218,19 +252,33 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             </label>
           </div>
 
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>
-              Which day do they want / কোন দিন চান <span className={styles.muted}>— optional / ঐচ্ছিক</span>
-            </span>
-            <input
-              type="date"
-              value={wantDate}
-              onChange={(e) => setWantDate(e.target.value)}
-              className={styles.textInput}
-              style={{ maxWidth: 220 }}
-            />
-            {!wantDate && <span className={styles.hint}>Leave it empty if they did not say — you can add it later.</span>}
-          </label>
+          <div className={styles.twoCol}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                Which day do they want / কোন দিন চান <span className={styles.muted}>— optional / ঐচ্ছিক</span>
+              </span>
+              <input
+                type="date"
+                value={wantDate}
+                onChange={(e) => setWantDate(e.target.value)}
+                className={styles.textInput}
+              />
+              {!wantDate && <span className={styles.hint}>Leave it empty if they did not say — you can add it later.</span>}
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                Which time / কোন সময় <span className={styles.muted}>— optional / ঐচ্ছিক</span>
+              </span>
+              <select value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} className={styles.textInput}>
+                <option value="">No preference…</option>
+                {TIME_SLOTS.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <div
             className={styles.urgentPanel}

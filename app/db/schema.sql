@@ -35,6 +35,8 @@ create table leads (
   department text not null default '',
   patient_name text not null default '',
   want_date date,
+  preferred_time text not null default '',
+  email text not null default '',
   note text not null default '',
   status lead_status not null default 'waiting',
   detail text not null default '',

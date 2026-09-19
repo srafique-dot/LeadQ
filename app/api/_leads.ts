@@ -10,6 +10,8 @@ export interface LeadRow {
   department: string;
   patient_name: string;
   want_date: string | null;
+  preferred_time: string;
+  email: string;
   note: string;
   status: string;
   detail: string;
@@ -56,6 +58,8 @@ export async function serializeLead(row: LeadRow) {
     department: row.department,
     patientName: row.patient_name,
     wantDate: row.want_date ?? "",
+    preferredTime: row.preferred_time,
+    email: row.email,
     note: row.note,
     status: row.status,
     detail: row.detail,

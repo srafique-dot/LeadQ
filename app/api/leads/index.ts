@@ -11,6 +11,8 @@ interface NewLeadBody {
   department: string;
   patientName: string;
   wantDate: string;
+  preferredTime: string;
+  email: string;
   note: string;
   urgent: boolean;
   urgentReason: string;
@@ -91,9 +93,9 @@ export default route({
     const detail = b.urgent ? "Urgent · first in the queue · just now" : "In the queue · just now";
     const { rows } = await query<LeadRow>(
       `insert into leads
-         (name, phone, facility, area, doctor, department, patient_name, want_date, note,
+         (name, phone, facility, area, doctor, department, patient_name, want_date, preferred_time, email, note,
           status, detail, urgent, urgent_reason, cohort, owner_id, owner_name, channel)
-       values ($1,$2,$3,$4,$5,$6,$7,nullif($8,'')::date,$9,'waiting',$10,$11,$12,$13,$14,$15,$16)
+       values ($1,$2,$3,$4,$5,$6,$7,nullif($8,'')::date,$9,$10,$11,'waiting',$12,$13,$14,$15,$16,$17,$18)
        returning *`,
       [
         b.name.trim(),
@@ -104,6 +106,8 @@ export default route({
         b.department?.trim() ?? "",
         b.patientName?.trim() ?? "",
         b.wantDate ?? "",
+        b.preferredTime ?? "",
+        b.email?.trim() ?? "",
         b.note?.trim() ?? "",
         detail,
         b.urgent,
