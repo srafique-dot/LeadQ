@@ -21,11 +21,11 @@ const ROLE_LABEL: Record<Role, string> = {
 // Matches the mock accounts baked into the Claude Design handoff so the two
 // stay interchangeable during review (Outbound Queue - Sign in.dc.html).
 const SEED_ACCOUNTS: Account[] = [
-  { employeeId: "CC-002", name: "Nusrat Jahan", role: "agent", roleLabel: ROLE_LABEL.agent, password: "queue123", mustChangePassword: false, callingNumber: "2102", active: true, facility: "UMCH Main" },
-  { employeeId: "CC-009", name: "Farhana Islam", role: "agent", roleLabel: ROLE_LABEL.agent, password: "Kf7-r2mq", mustChangePassword: true, callingNumber: "", active: true, facility: "Medix Uttara" },
-  { employeeId: "BD-007", name: "Ishrat Sultana", role: "requester", roleLabel: ROLE_LABEL.requester, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "Medix Uttara" },
-  { employeeId: "OP-001", name: "Shahriar Kabir", role: "admin", roleLabel: ROLE_LABEL.admin, password: "queue123", mustChangePassword: false, callingNumber: "2001", active: true, facility: "All sites" },
-  { employeeId: "IT-001", name: "Sabbir Chowdhury", role: "superadmin", roleLabel: ROLE_LABEL.superadmin, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "All sites" },
+  { employeeId: "NUSRAT_002", name: "Nusrat Jahan", role: "agent", roleLabel: ROLE_LABEL.agent, password: "queue123", mustChangePassword: false, callingNumber: "2102", active: true, facility: "UMCH Main" },
+  { employeeId: "FARHANA_009", name: "Farhana Islam", role: "agent", roleLabel: ROLE_LABEL.agent, password: "Kf7-r2mq", mustChangePassword: true, callingNumber: "", active: true, facility: "Medix Uttara" },
+  { employeeId: "ISHRAT_007", name: "Ishrat Sultana", role: "requester", roleLabel: ROLE_LABEL.requester, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "Medix Uttara" },
+  { employeeId: "SHAHRIAR_001", name: "Shahriar Kabir", role: "admin", roleLabel: ROLE_LABEL.admin, password: "queue123", mustChangePassword: false, callingNumber: "2001", active: true, facility: "All sites" },
+  { employeeId: "SABBIR_001", name: "Sabbir Chowdhury", role: "superadmin", roleLabel: ROLE_LABEL.superadmin, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "All sites" },
 ];
 
 function loadAccounts(): Account[] {
@@ -138,7 +138,7 @@ export interface NewAccountInput {
 }
 
 export function isValidEmployeeId(id: string): boolean {
-  return /^[A-Za-z]{2}-\d{3}$/.test(id.trim());
+  return /^[A-Za-z]{2,}_\d{3}$/.test(id.trim());
 }
 
 export function createAccount(input: NewAccountInput): { account: Account; password: string } {

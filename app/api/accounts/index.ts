@@ -50,7 +50,7 @@ export default route({
   POST: async (req, res) => {
     const b = body<NewAccountBody>(req);
     const id = b.employeeId.trim().toUpperCase();
-    if (!/^[A-Za-z]{2}-\d{3}$/.test(id)) return void res.status(400).json({ error: "invalid_id" });
+    if (!/^[A-Za-z]{2,}_\d{3}$/.test(id)) return void res.status(400).json({ error: "invalid_id" });
 
     const password = generatePassword();
     const hash = await bcrypt.hash(password, 10);

@@ -224,7 +224,7 @@ export function SignIn() {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") attempt();
                   }}
-                  placeholder="CC-002"
+                  placeholder="NUSRAT_002"
                   autoComplete="username"
                   className={`${styles.idInput} ${error ? styles.errored : ""}`}
                 />
@@ -297,7 +297,7 @@ export function SignIn() {
         </div>
 
         <div className={styles.demoHint}>
-          Mock accounts: CC-002 / queue123 signs straight in · CC-009 / Kf7-r2mq is a brand new account and must pick
+          Mock accounts: NUSRAT_002 / queue123 signs straight in · FARHANA_009 / Kf7-r2mq is a brand new account and must pick
           a password.
         </div>
       </div>

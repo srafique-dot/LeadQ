@@ -20,7 +20,7 @@ function base(over: Partial<Lead> & Pick<Lead, "id" | "name" | "phone" | "facili
     urgentReason: "",
     merged: false,
     cohort: "",
-    ownerId: "BD-007",
+    ownerId: "ISHRAT_007",
     ownerName: "Ishrat Sultana",
     channel: "Manual entry",
     existing: false,
@@ -42,7 +42,7 @@ const SEED_LEADS: Lead[] = [
   base({ id: "L-24559", name: "Shamsun Nahar", phone: "+880 1521 330 774", facility: "Medix Uttara", doctor: "Dr. Syeda Nure Jannat", status: "booked", detail: "Booked + paid · 06 Sep", cohort: "Sep health camp — Uttara", channel: "Meta Lead Ads", createdAt: "2026-09-06T08:00:00.000Z" }),
   base({ id: "L-24601", name: "Kamrul Hasan", phone: "+880 1713 908 221", facility: "UMCH Main", doctor: "Prof. A.Q.M. Mohsen", status: "waiting", detail: "In the queue · 4m", channel: "Google Lead Form", createdAt: "2026-09-08T07:56:00.000Z" }),
   base({ id: "L-24588", name: "Sultana Razia", phone: "+880 1911 776 540", facility: "Medix Uttara", doctor: "Dr. Sumia Bari", status: "trying", detail: "Call 2 of 4 · no answer", attempt: 2, cohort: "Sep health camp — Uttara", channel: "Website LP",
-    history: [{ attempt: 1, when: "07 Sep, 10:12 AM", whenISO: "2026-09-07T10:12:00.000Z", agentId: "CC-002", agentName: "Nusrat Jahan", l1: "not_responding", l2: null, note: "Rang out, no answer." }],
+    history: [{ attempt: 1, when: "07 Sep, 10:12 AM", whenISO: "2026-09-07T10:12:00.000Z", agentId: "NUSRAT_002", agentName: "Nusrat Jahan", l1: "not_responding", l2: null, note: "Rang out, no answer." }],
     createdAt: "2026-09-06T09:00:00.000Z" }),
   base({ id: "L-24572", name: "Rahima Khatun", phone: "+880 1711 204 556", facility: "Medix Uttara", department: "Cardiology", status: "trying", detail: "Merged with a Meta lead · call 1 of 4", merged: true, cohort: "Meta ads — Sep", channel: "Meta Lead Ads",
     entries: [
@@ -51,7 +51,7 @@ const SEED_LEADS: Lead[] = [
     ],
     createdAt: "2026-09-05T09:00:00.000Z" }),
   base({ id: "L-24540", name: "Jamil Uddin", phone: "+880 1611 200 913", facility: "UMCH Main", department: "General Medicine", status: "closed", detail: "Not interested — price · 05 Sep", cohort: "Meta ads — Sep", channel: "Meta Lead Ads",
-    history: [{ attempt: 1, when: "05 Sep, 03:20 PM", whenISO: "2026-09-05T15:20:00.000Z", agentId: "CC-002", agentName: "Nusrat Jahan", l1: "connected", l2: "ni_price", note: "Package above budget." }],
+    history: [{ attempt: 1, when: "05 Sep, 03:20 PM", whenISO: "2026-09-05T15:20:00.000Z", agentId: "NUSRAT_002", agentName: "Nusrat Jahan", l1: "connected", l2: "ni_price", note: "Package above budget." }],
     createdAt: "2026-09-05T08:00:00.000Z" }),
 ];
 

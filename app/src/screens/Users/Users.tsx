@@ -54,7 +54,7 @@ export function Users() {
   const idOk = isValidEmployeeId(nfId);
   const blockers: string[] = [];
   if (!nfId.trim()) blockers.push("Write their employee ID.");
-  else if (!idOk) blockers.push("Employee ID looks like BD-014 — two letters, a dash, three digits.");
+  else if (!idOk) blockers.push("Employee ID looks like TANVIR_014 — their name, an underscore, three digits.");
   else if (idTaken) blockers.push("That employee ID already has an account.");
   else if (!nfName.trim()) blockers.push("Write their full name.");
   else if (!nfRole) blockers.push("Pick what they do.");
@@ -253,12 +253,12 @@ export function Users() {
                 <input
                   value={nfId}
                   onChange={(e) => setNfId(e.target.value)}
-                  placeholder="BD-014"
+                  placeholder="TANVIR_014"
                   className={styles.idInput}
                   style={{ borderWidth: 1.5, borderStyle: "solid", borderColor: !nfId.trim() ? "var(--border-input)" : idOk && !idTaken ? "var(--success-tint-border)" : "#E0C98F" }}
                 />
                 <span className={styles.hint} style={{ color: !nfId.trim() ? "var(--ink-faint)" : idOk && !idTaken ? "var(--success-dark)" : "var(--warning-dark)" }}>
-                  {!nfId.trim() ? "This is what they type to sign in." : idTaken ? "Already taken — check the roster." : idOk ? "Available." : "Two letters, a dash, three digits."}
+                  {!nfId.trim() ? "This is what they type to sign in." : idTaken ? "Already taken — check the roster." : idOk ? "Available." : "Their name, an underscore, three digits."}
                 </span>
               </label>
 

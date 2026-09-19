@@ -13,7 +13,7 @@ create type level2_code as enum (
 );
 
 create table accounts (
-  employee_id text primary key check (employee_id ~ '^[A-Za-z]{2}-\d{3}$'),
+  employee_id text primary key check (employee_id ~ '^[A-Za-z]{2,}_\d{3}$'),
   name text not null,
   role role not null,
   password_hash text not null,

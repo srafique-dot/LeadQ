@@ -12,11 +12,11 @@ import { route } from "./_http";
  * Set SEED_SECRET in the Vercel project's environment variables first.
  */
 const ACCOUNTS = [
-  { id: "CC-002", name: "Nusrat Jahan", role: "agent", password: "queue123", ext: "2102", facility: "UMCH Main" },
-  { id: "CC-009", name: "Farhana Islam", role: "agent", password: "Kf7-r2mq", ext: "", facility: "Medix Uttara" },
-  { id: "BD-007", name: "Ishrat Sultana", role: "requester", password: "queue123", ext: "", facility: "Medix Uttara" },
-  { id: "OP-001", name: "Shahriar Kabir", role: "admin", password: "queue123", ext: "2001", facility: "All sites" },
-  { id: "IT-001", name: "Sabbir Chowdhury", role: "superadmin", password: "queue123", ext: "", facility: "All sites" },
+  { id: "NUSRAT_002", name: "Nusrat Jahan", role: "agent", password: "queue123", ext: "2102", facility: "UMCH Main" },
+  { id: "FARHANA_009", name: "Farhana Islam", role: "agent", password: "Kf7-r2mq", ext: "", facility: "Medix Uttara" },
+  { id: "ISHRAT_007", name: "Ishrat Sultana", role: "requester", password: "queue123", ext: "", facility: "Medix Uttara" },
+  { id: "SHAHRIAR_001", name: "Shahriar Kabir", role: "admin", password: "queue123", ext: "2001", facility: "All sites" },
+  { id: "SABBIR_001", name: "Sabbir Chowdhury", role: "superadmin", password: "queue123", ext: "", facility: "All sites" },
 ];
 
 export default route({
