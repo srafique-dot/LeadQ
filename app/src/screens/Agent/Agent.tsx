@@ -7,6 +7,7 @@ import {
   escalateLead,
   splitMergedLead,
   serviceLine,
+  leadTypeLabel,
   LEVEL1,
   LEVEL2,
   QUICK_NOTES,
@@ -424,6 +425,10 @@ export function Agent() {
                         <div>
                           <div className={styles.detailLabel}>Came from</div>
                           <div className={styles.detailValue}>{lead.channel}</div>
+                        </div>
+                        <div>
+                          <div className={styles.detailLabel}>Enquiry type</div>
+                          <div className={styles.detailValue}>{leadTypeLabel(lead.leadType)}</div>
                         </div>
                         <div>
                           <div className={styles.detailLabel}>Waiting</div>

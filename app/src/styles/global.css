@@ -5,6 +5,10 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "@fontsource/ibm-plex-mono/600.css";
+@import "@fontsource/hind-siliguri/bengali-400.css";
+@import "@fontsource/hind-siliguri/bengali-500.css";
+@import "@fontsource/hind-siliguri/bengali-600.css";
+@import "@fontsource/hind-siliguri/bengali-700.css";
 @import "./tokens.css";
 
 html,
@@ -36,6 +40,15 @@ a:hover {
 button {
   font-family: inherit;
   cursor: pointer;
+}
+
+/* Bangla runs mixed into bilingual labels ("Name / নাম") read heavier and
+   larger than the Latin half at the same font-size — Hind Siliguri at a
+   touch smaller and lighter keeps the two halves visually balanced. */
+.bn {
+  font-family: var(--font-bn);
+  font-size: 0.92em;
+  font-weight: 500;
 }
 
 input,

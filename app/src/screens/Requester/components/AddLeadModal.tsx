@@ -1,8 +1,15 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import styles from "../Requester.module.css";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { digitsOf, findLeadByPhone, createLead, mergeIntoLead, serviceLine, statusLabel } from "../../../api/leads";
-import type { Account } from "../../../api/types";
+import type { Account, LeadType } from "../../../api/types";
+
+/** Wraps the Bangla half of a bilingual label so it renders in Hind
+ * Siliguri at a size/weight balanced against the English half — at equal
+ * font-size Bangla glyphs read visibly larger and heavier. */
+function Bn({ children }: { children: ReactNode }) {
+  return <span className="bn">{children}</span>;
+}
 
 interface AddLeadModalProps {
   currentUser: Account;
@@ -16,6 +23,13 @@ const SOURCES = [
   { value: "Manual entry", label: "Phone-in / walk-in / ফোন বা সরাসরি" },
   { value: "Website LP", label: "Website enquiry / ওয়েবসাইট" },
   { value: "Door2Door Campaign", label: "Door-to-door campaign / ডোর টু ডোর ক্যাম্পেইন" },
+];
+const LEAD_TYPES: { value: LeadType; label: string }[] = [
+  { value: "appointment", label: "Doctor appointment / ডাক্তারের অ্যাপয়েন্টমেন্ট" },
+  { value: "surgery_package", label: "Surgery package / সার্জারি প্যাকেজ" },
+  { value: "health_package", label: "Health package / স্বাস্থ্য প্যাকেজ" },
+  { value: "international_patient", label: "International patient / আন্তর্জাতিক রোগী" },
+  { value: "general_inquiry", label: "General inquiry / সাধারণ জিজ্ঞাসা" },
 ];
 
 type EntryMode = "merge" | "separate" | null;
@@ -34,6 +48,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [preferredTime, setPreferredTime] = useState("");
   const [email, setEmail] = useState("");
   const [source, setSource] = useState(SOURCES[0].value);
+  const [leadType, setLeadType] = useState<LeadType>(LEAD_TYPES[0].value);
   const [urgent, setUrgent] = useState(false);
   const [urgentReason, setUrgentReason] = useState("");
   const [forOther, setForOther] = useState(false);
@@ -80,7 +95,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
       onSaved(`Added to ${dup.name} — the agent still sees one lead. Logged against ${currentUser.employeeId}.`);
     } else {
       const created = createLead(
-        { name, phone, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: "" },
+        { name, phone, leadType, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: "" },
         currentUser.employeeId,
         currentUser.name,
         source,
@@ -99,7 +114,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
       <div className={`${styles.modalCard} ${narrow ? styles.sheet : ""}`}>
         <div className={styles.modalHeader}>
           <div style={{ minWidth: 0 }}>
-            <div className={styles.modalTitle}>Add a lead / নতুন লিড</div>
+            <div className={styles.modalTitle}>
+              Add a lead / <Bn>নতুন লিড</Bn>
+            </div>
             <div className={styles.modalSubtitle}>
               Saved under <span style={{ fontWeight: 600, color: "var(--ink-secondary)" }}>{currentUser.name}</span> ·{" "}
               {currentUser.employeeId}
@@ -111,19 +128,37 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
         </div>
 
         <div className={styles.modalBody}>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>How did this lead come in? / এই লিড কীভাবে এসেছে</span>
-            <select value={source} onChange={(e) => setSource(e.target.value)} className={styles.textInput}>
-              {SOURCES.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className={styles.twoCol}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                How did this lead come in? / <Bn>এই লিড কীভাবে এসেছে</Bn>
+              </span>
+              <select value={source} onChange={(e) => setSource(e.target.value)} className={styles.textInput}>
+                {SOURCES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                What is this about? / <Bn>এটি কী বিষয়ে</Bn>
+              </span>
+              <select value={leadType} onChange={(e) => setLeadType(e.target.value as LeadType)} className={styles.textInput}>
+                {LEAD_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Phone number / ফোন নম্বর</span>
+            <span className={styles.fieldLabel}>
+              Phone number / <Bn>ফোন নম্বর</Bn>
+            </span>
             <input
               value={phone}
               onChange={(e) => setPhoneValue(e.target.value)}
@@ -184,7 +219,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
           )}
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Name / নাম</span>
+            <span className={styles.fieldLabel}>
+              Name / <Bn>নাম</Bn>
+            </span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -195,7 +232,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>
-              Email / ইমেইল <span className={styles.muted}>— optional / ঐচ্ছিক</span>
+              Email / <Bn>ইমেইল</Bn> <span className={styles.muted}>— optional / <Bn>ঐচ্ছিক</Bn></span>
             </span>
             <input
               type="email"
@@ -208,7 +245,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <div className={styles.twoCol}>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Which hospital / কোন হাসপাতাল</span>
+              <span className={styles.fieldLabel}>
+                Which hospital / <Bn>কোন হাসপাতাল</Bn>
+              </span>
               <select value={facility} onChange={(e) => setFacility(e.target.value)} className={styles.textInput}>
                 <option value="">Choose one…</option>
                 {HOSPITALS.map((h) => (
@@ -219,7 +258,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               </select>
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Area / এলাকা</span>
+              <span className={styles.fieldLabel}>
+                Area / <Bn>এলাকা</Bn>
+              </span>
               <input
                 value={area}
                 onChange={(e) => setArea(e.target.value)}
@@ -231,7 +272,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <div className={styles.twoCol}>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Which doctor did they ask for / কোন ডাক্তার চেয়েছেন</span>
+              <span className={styles.fieldLabel}>
+                Which doctor did they ask for / <Bn>কোন ডাক্তার চেয়েছেন</Bn>
+              </span>
               <input
                 value={doctor}
                 onChange={(e) => setDoctor(e.target.value)}
@@ -241,7 +284,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
-                Department / বিভাগ <span className={styles.muted}>— if no doctor named / ডাক্তারের নাম না থাকলে</span>
+                Department / <Bn>বিভাগ</Bn> <span className={styles.muted}>— if no doctor named / <Bn>ডাক্তারের নাম না থাকলে</Bn></span>
               </span>
               <input
                 value={dept}
@@ -255,7 +298,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
           <div className={styles.twoCol}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
-                Which day do they want / কোন দিন চান <span className={styles.muted}>— optional / ঐচ্ছিক</span>
+                Which day do they want / <Bn>কোন দিন চান</Bn> <span className={styles.muted}>— optional / <Bn>ঐচ্ছিক</Bn></span>
               </span>
               <input
                 type="date"
@@ -267,7 +310,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
-                Which time / কোন সময় <span className={styles.muted}>— optional / ঐচ্ছিক</span>
+                Which time / <Bn>কোন সময়</Bn> <span className={styles.muted}>— optional / <Bn>ঐচ্ছিক</Bn></span>
               </span>
               <select value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} className={styles.textInput}>
                 <option value="">No preference…</option>
@@ -288,7 +331,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               <span className={`${styles.checkMark} ${urgent ? styles.checked : ""}`}>{urgent ? "✓" : ""}</span>
               <span style={{ minWidth: 0 }}>
                 <span className={styles.urgentLabel} style={{ color: urgent ? "var(--danger)" : "var(--ink-secondary)" }}>
-                  Call this one first / প্রথমে এটি কল করুন
+                  Call this one first / <Bn>প্রথমে এটি কল করুন</Bn>
                 </span>
                 <span className={styles.urgentSub}>
                   VIP, referred by a doctor, or genuinely time-critical. It jumps ahead of everything waiting.
@@ -298,7 +341,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             {urgent && (
               <label className={styles.field} style={{ marginTop: 14 }}>
                 <span className={styles.fieldLabel}>
-                  Why / কেন <span className={styles.required}>— required / আবশ্যক</span>
+                  Why / <Bn>কেন</Bn> <span className={styles.required}>— required / <Bn>আবশ্যক</Bn></span>
                 </span>
                 <input
                   value={urgentReason}
@@ -322,11 +365,21 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
                 setPatient("");
               }}
             >
-              {forOther ? "The caller is the patient / কলকারী নিজেই রোগী" : "This booking is for someone else / এই বুকিং অন্য কারো জন্য"}
+              {forOther ? (
+                <>
+                  The caller is the patient / <Bn>কলকারী নিজেই রোগী</Bn>
+                </>
+              ) : (
+                <>
+                  This booking is for someone else / <Bn>এই বুকিং অন্য কারো জন্য</Bn>
+                </>
+              )}
             </button>
             {forOther && (
               <label className={styles.field} style={{ marginTop: 12 }}>
-                <span className={styles.fieldLabel}>Patient’s name / রোগীর নাম</span>
+                <span className={styles.fieldLabel}>
+                  Patient’s name / <Bn>রোগীর নাম</Bn>
+                </span>
                 <input
                   value={patient}
                   onChange={(e) => setPatient(e.target.value)}
@@ -340,7 +393,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>
-              What they said / তারা কী বলেছে <span className={styles.muted}>— optional / ঐচ্ছিক</span>
+              What they said / <Bn>তারা কী বলেছে</Bn> <span className={styles.muted}>— optional / <Bn>ঐচ্ছিক</Bn></span>
             </span>
             <textarea
               value={note}
@@ -360,7 +413,15 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             className={styles.saveBtn}
             style={{ background: blocked ? "var(--disabled-btn)" : "var(--primary)", opacity: blocked ? 0.75 : 1 }}
           >
-            {isMerging ? "Add to existing lead / বিদ্যমান লিডে যোগ করুন" : "Create lead / লিড তৈরি করুন"}
+            {isMerging ? (
+              <>
+                Add to existing lead / <Bn>বিদ্যমান লিডে যোগ করুন</Bn>
+              </>
+            ) : (
+              <>
+                Create lead / <Bn>লিড তৈরি করুন</Bn>
+              </>
+            )}
           </button>
           <div className={styles.footerStatus} style={{ color: blocked ? "var(--danger)" : "var(--ink-faint)" }}>
             {status}

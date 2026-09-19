@@ -11,6 +11,7 @@ create type level2_code as enum (
   'appointment_purchased', 'appointment_booked', 'info_given', 'callback_later',
   'ni_price', 'ni_distance', 'ni_elsewhere', 'wrong_person', 'duplicate'
 );
+create type lead_type as enum ('appointment', 'surgery_package', 'health_package', 'international_patient', 'general_inquiry');
 
 create table accounts (
   employee_id text primary key check (employee_id ~ '^[A-Za-z]{2,}_\d{3}$'),
@@ -29,6 +30,7 @@ create table leads (
   name text not null,
   phone text not null,
   digits text generated always as (regexp_replace(right(phone, 10), '\D', '', 'g')) stored,
+  lead_type lead_type not null default 'appointment',
   facility text not null default '',
   area text not null default '',
   doctor text not null default '',

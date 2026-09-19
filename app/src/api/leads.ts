@@ -1,4 +1,4 @@
-import type { Lead, LeadStatus, NewLeadInput, Level1Code, Level2Code, DispositionRecord } from "./types";
+import type { Lead, LeadStatus, LeadType, NewLeadInput, Level1Code, Level2Code, DispositionRecord } from "./types";
 
 /**
  * Mock leads store for phase 1. Same contract-first shape as auth.ts: every
@@ -8,8 +8,21 @@ import type { Lead, LeadStatus, NewLeadInput, Level1Code, Level2Code, Dispositio
 
 const LEADS_KEY = "umch.mock.leads";
 
+export const LEAD_TYPES: { code: LeadType; label: string }[] = [
+  { code: "appointment", label: "Doctor appointment" },
+  { code: "surgery_package", label: "Surgery package" },
+  { code: "health_package", label: "Health package" },
+  { code: "international_patient", label: "International patient" },
+  { code: "general_inquiry", label: "General inquiry" },
+];
+
+export function leadTypeLabel(t: LeadType): string {
+  return LEAD_TYPES.find((o) => o.code === t)?.label ?? t;
+}
+
 function base(over: Partial<Lead> & Pick<Lead, "id" | "name" | "phone" | "facility" | "status" | "detail" | "createdAt">): Lead {
   return {
+    leadType: "appointment",
     area: "",
     doctor: "",
     department: "",
@@ -103,6 +116,7 @@ export function createLead(input: NewLeadInput, ownerId: string, ownerName: stri
     id: "L-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
     name: input.name.trim(),
     phone: input.phone.trim(),
+    leadType: input.leadType,
     facility: input.facility,
     area: input.area.trim(),
     doctor: input.doctor.trim(),
@@ -169,6 +183,7 @@ export function importLeads(rows: ImportRow[], cohort: string, ownerId: string, 
         {
           name: row.name,
           phone: row.phone,
+          leadType: "appointment",
           facility: row.facility,
           area: "",
           doctor: row.doctorOrDept,

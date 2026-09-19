@@ -20,6 +20,8 @@ export interface Account {
 
 export type LeadStatus = "waiting" | "trying" | "booked" | "closed";
 
+export type LeadType = "appointment" | "surgery_package" | "health_package" | "international_patient" | "general_inquiry";
+
 export type Level1Code = "connected" | "not_responding" | "busy" | "number_off" | "invalid_number" | "call_rejected";
 export type Level2Code =
   | "appointment_purchased"
@@ -54,6 +56,7 @@ export interface Lead {
   id: string;
   name: string;
   phone: string;
+  leadType: LeadType;
   facility: string;
   area: string;
   doctor: string;
@@ -88,6 +91,7 @@ export interface Lead {
 export interface NewLeadInput {
   name: string;
   phone: string;
+  leadType: LeadType;
   facility: string;
   area: string;
   doctor: string;

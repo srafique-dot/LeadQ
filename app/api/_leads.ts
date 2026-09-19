@@ -4,6 +4,7 @@ export interface LeadRow {
   id: string;
   name: string;
   phone: string;
+  lead_type: string;
   facility: string;
   area: string;
   doctor: string;
@@ -52,6 +53,7 @@ export async function serializeLead(row: LeadRow) {
     id: row.id,
     name: row.name,
     phone: row.phone,
+    leadType: row.lead_type,
     facility: row.facility,
     area: row.area,
     doctor: row.doctor,

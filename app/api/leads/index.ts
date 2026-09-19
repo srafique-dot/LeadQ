@@ -5,6 +5,7 @@ import { serializeLead, digitsOf, type LeadRow } from "../_leads";
 interface NewLeadBody {
   name: string;
   phone: string;
+  leadType: string;
   facility: string;
   area: string;
   doctor: string;
@@ -93,13 +94,14 @@ export default route({
     const detail = b.urgent ? "Urgent · first in the queue · just now" : "In the queue · just now";
     const { rows } = await query<LeadRow>(
       `insert into leads
-         (name, phone, facility, area, doctor, department, patient_name, want_date, preferred_time, email, note,
+         (name, phone, lead_type, facility, area, doctor, department, patient_name, want_date, preferred_time, email, note,
           status, detail, urgent, urgent_reason, cohort, owner_id, owner_name, channel)
-       values ($1,$2,$3,$4,$5,$6,$7,nullif($8,'')::date,$9,$10,$11,'waiting',$12,$13,$14,$15,$16,$17,$18)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,nullif($9,'')::date,$10,$11,$12,'waiting',$13,$14,$15,$16,$17,$18,$19)
        returning *`,
       [
         b.name.trim(),
         b.phone.trim(),
+        b.leadType ?? "appointment",
         b.facility,
         b.area?.trim() ?? "",
         b.doctor?.trim() ?? "",

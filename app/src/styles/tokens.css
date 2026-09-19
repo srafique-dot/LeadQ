@@ -43,6 +43,7 @@
   --shadow-modal: 0 24px 60px rgba(15, 28, 34, 0.28);
   --overlay: rgba(15, 28, 34, 0.55);
 
-  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", "Hind Siliguri", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", monospace;
+  --font-bn: "Hind Siliguri", "IBM Plex Sans", system-ui, sans-serif;
 }

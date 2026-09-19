@@ -12,6 +12,7 @@ import {
   getAllLeads,
   listCdrMonths,
   saveCdrMonth,
+  LEAD_TYPES,
   type CdrRow,
 } from "../../api/leads";
 
@@ -67,6 +68,12 @@ export function Supervisor() {
   const pastTarget = getLeadsPastTarget(TARGET_MIN).filter((l) => !dismissed.includes("target:" + l.id));
   const overdueCallbacks = getOverdueCallbacks().filter((l) => !dismissed.includes("cb:" + l.id));
   const escalated = getEscalatedLeads();
+
+  const openLeads = getAllLeads().filter((l) => l.status === "waiting" || l.status === "trying");
+  const leadTypeBreakdown = LEAD_TYPES.map((t) => ({
+    ...t,
+    count: openLeads.filter((l) => l.leadType === t.code).length,
+  })).filter((t) => t.count > 0);
 
   const dayRows = agents
     .map((a) => {
@@ -249,6 +256,27 @@ export function Supervisor() {
                 <div className={styles.tileLabel}>Sent to you by agents</div>
               </div>
             </div>
+
+            {leadTypeBreakdown.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", margin: "4px 0 20px" }}>
+                <span style={{ fontSize: 13, color: "var(--ink-faint)", fontWeight: 600 }}>Open leads by enquiry type</span>
+                {leadTypeBreakdown.map((t) => (
+                  <span
+                    key={t.code}
+                    style={{
+                      fontSize: 13,
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      background: "var(--surface-subtle)",
+                      border: "1px solid var(--border-light)",
+                      color: "var(--ink-secondary)",
+                    }}
+                  >
+                    {t.label} <strong>{t.count}</strong>
+                  </span>
+                ))}
+              </div>
+            )}
 
             <div className={styles.splitGrid}>
               <div className={styles.card}>
