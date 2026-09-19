@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import styles from "../Requester.module.css";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { digitsOf, findLeadByPhone, createLead, mergeIntoLead, serviceLine, statusLabel } from "../../../api/leads";
@@ -54,6 +54,8 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [forOther, setForOther] = useState(false);
   const [patient, setPatient] = useState("");
   const [note, setNote] = useState("");
+  const [justSaved, setJustSaved] = useState("");
+  const phoneRef = useRef<HTMLInputElement>(null);
 
   const digits = digitsOf(phone);
   const dup = useMemo(() => (digits.length >= 7 ? (findLeadByPhone(phone) ?? null) : null), [phone, digits.length]);
@@ -65,6 +67,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   function setPhoneValue(v: string) {
     setPhone(v);
     setEntryMode(null);
+    setJustSaved("");
   }
 
   const blockers: string[] = [];
@@ -88,25 +91,56 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
         ? "Goes to the front of the queue — the next free agent gets it."
         : "Goes to the call centre with a 5 minute call target.";
 
-  function handleSave() {
-    if (blocked) return;
+  function performSave(): string {
     if (isMerging && dup) {
       mergeIntoLead(dup.id);
       onSaved(`Added to ${dup.name} — the agent still sees one lead. Logged against ${currentUser.employeeId}.`);
-    } else {
-      const created = createLead(
-        { name, phone, leadType, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: "" },
-        currentUser.employeeId,
-        currentUser.name,
-        source,
-      );
-      onSaved(
-        urgent
-          ? `${created.name} is first in the queue — marked urgent by ${currentUser.employeeId} ${currentUser.name}`
-          : `${created.name} is in the queue · created by ${currentUser.employeeId} ${currentUser.name}`,
-      );
+      return dup.name;
     }
+    const created = createLead(
+      { name, phone, leadType, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: "" },
+      currentUser.employeeId,
+      currentUser.name,
+      source,
+    );
+    onSaved(
+      urgent
+        ? `${created.name} is first in the queue — marked urgent by ${currentUser.employeeId} ${currentUser.name}`
+        : `${created.name} is in the queue · created by ${currentUser.employeeId} ${currentUser.name}`,
+    );
+    return created.name;
+  }
+
+  function clearForNextLead() {
+    setPhone("");
+    setEntryMode(null);
+    setName("");
+    setArea("");
+    setDoctor("");
+    setDept("");
+    setWantDate("");
+    setPreferredTime("");
+    setEmail("");
+    setUrgent(false);
+    setUrgentReason("");
+    setForOther(false);
+    setPatient("");
+    setNote("");
+    // source, leadType and facility are left as-is — a rapid-entry batch usually shares them.
+  }
+
+  function handleSave() {
+    if (blocked) return;
+    performSave();
     onClose();
+  }
+
+  function handleSaveAndAddAnother() {
+    if (blocked) return;
+    const savedName = performSave();
+    clearForNextLead();
+    setJustSaved(savedName);
+    phoneRef.current?.focus();
   }
 
   return (
@@ -126,6 +160,25 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             ×
           </button>
         </div>
+
+        {justSaved && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 24px",
+              flex: "0 0 auto",
+              background: "var(--success-tint)",
+              borderBottom: "1px solid var(--success-tint-border)",
+              color: "var(--success-dark)",
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+          >
+            ✓ {justSaved} added — keep going, or close when the batch is done.
+          </div>
+        )}
 
         <div className={styles.modalBody}>
           <div className={styles.twoCol}>
@@ -160,6 +213,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               Phone number / <Bn>ফোন নম্বর</Bn>
             </span>
             <input
+              ref={phoneRef}
               value={phone}
               onChange={(e) => setPhoneValue(e.target.value)}
               placeholder="+880 1XXX XXX XXX"
@@ -409,6 +463,15 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
           <button
             type="button"
             disabled={blocked}
+            onClick={handleSaveAndAddAnother}
+            className={styles.btnImport}
+            style={{ minHeight: 48, opacity: blocked ? 0.6 : 1 }}
+          >
+            Save &amp; add another / <Bn>সংরক্ষণ করে আরেকটি যোগ করুন</Bn>
+          </button>
+          <button
+            type="button"
+            disabled={blocked}
             onClick={handleSave}
             className={styles.saveBtn}
             style={{ background: blocked ? "var(--disabled-btn)" : "var(--primary)", opacity: blocked ? 0.75 : 1 }}
@@ -419,7 +482,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               </>
             ) : (
               <>
-                Create lead / <Bn>লিড তৈরি করুন</Bn>
+                Create lead &amp; close / <Bn>লিড তৈরি করে বন্ধ করুন</Bn>
               </>
             )}
           </button>
