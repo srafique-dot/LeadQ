@@ -89,7 +89,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
       <div className={`${styles.modalCard} ${narrow ? styles.sheet : ""}`}>
         <div className={styles.modalHeader}>
           <div style={{ minWidth: 0 }}>
-            <div className={styles.modalTitle}>Add a lead</div>
+            <div className={styles.modalTitle}>Add a lead / নতুন লিড</div>
             <div className={styles.modalSubtitle}>
               Saved under <span style={{ fontWeight: 600, color: "var(--ink-secondary)" }}>{currentUser.name}</span> ·{" "}
               {currentUser.employeeId}
@@ -102,7 +102,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
         <div className={styles.modalBody}>
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Phone number</span>
+            <span className={styles.fieldLabel}>Phone number / ফোন নম্বর</span>
             <input
               value={phone}
               onChange={(e) => setPhoneValue(e.target.value)}
@@ -163,7 +163,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
           )}
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Name</span>
+            <span className={styles.fieldLabel}>Name / নাম</span>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -174,7 +174,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <div className={styles.twoCol}>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Which hospital</span>
+              <span className={styles.fieldLabel}>Which hospital / কোন হাসপাতাল</span>
               <select value={facility} onChange={(e) => setFacility(e.target.value)} className={styles.textInput}>
                 <option value="">Choose one…</option>
                 {HOSPITALS.map((h) => (
@@ -185,7 +185,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               </select>
             </label>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Area</span>
+              <span className={styles.fieldLabel}>Area / এলাকা</span>
               <input
                 value={area}
                 onChange={(e) => setArea(e.target.value)}
@@ -197,7 +197,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <div className={styles.twoCol}>
             <label className={styles.field}>
-              <span className={styles.fieldLabel}>Which doctor did they ask for</span>
+              <span className={styles.fieldLabel}>Which doctor did they ask for / কোন ডাক্তার চেয়েছেন</span>
               <input
                 value={doctor}
                 onChange={(e) => setDoctor(e.target.value)}
@@ -207,7 +207,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
-                Department <span className={styles.muted}>— if no doctor named</span>
+                Department / বিভাগ <span className={styles.muted}>— if no doctor named / ডাক্তারের নাম না থাকলে</span>
               </span>
               <input
                 value={dept}
@@ -220,7 +220,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>
-              Which day do they want <span className={styles.muted}>— optional</span>
+              Which day do they want / কোন দিন চান <span className={styles.muted}>— optional / ঐচ্ছিক</span>
             </span>
             <input
               type="date"
@@ -240,7 +240,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               <span className={`${styles.checkMark} ${urgent ? styles.checked : ""}`}>{urgent ? "✓" : ""}</span>
               <span style={{ minWidth: 0 }}>
                 <span className={styles.urgentLabel} style={{ color: urgent ? "var(--danger)" : "var(--ink-secondary)" }}>
-                  Call this one first
+                  Call this one first / প্রথমে এটি কল করুন
                 </span>
                 <span className={styles.urgentSub}>
                   VIP, referred by a doctor, or genuinely time-critical. It jumps ahead of everything waiting.
@@ -250,7 +250,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             {urgent && (
               <label className={styles.field} style={{ marginTop: 14 }}>
                 <span className={styles.fieldLabel}>
-                  Why <span className={styles.required}>— required</span>
+                  Why / কেন <span className={styles.required}>— required / আবশ্যক</span>
                 </span>
                 <input
                   value={urgentReason}
@@ -274,11 +274,11 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
                 setPatient("");
               }}
             >
-              {forOther ? "The caller is the patient" : "This booking is for someone else"}
+              {forOther ? "The caller is the patient / কলকারী নিজেই রোগী" : "This booking is for someone else / এই বুকিং অন্য কারো জন্য"}
             </button>
             {forOther && (
               <label className={styles.field} style={{ marginTop: 12 }}>
-                <span className={styles.fieldLabel}>Patient’s name</span>
+                <span className={styles.fieldLabel}>Patient’s name / রোগীর নাম</span>
                 <input
                   value={patient}
                   onChange={(e) => setPatient(e.target.value)}
@@ -292,7 +292,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>
-              What they said <span className={styles.muted}>— optional</span>
+              What they said / তারা কী বলেছে <span className={styles.muted}>— optional / ঐচ্ছিক</span>
             </span>
             <textarea
               value={note}
@@ -312,7 +312,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             className={styles.saveBtn}
             style={{ background: blocked ? "var(--disabled-btn)" : "var(--primary)", opacity: blocked ? 0.75 : 1 }}
           >
-            {isMerging ? "Add to existing lead" : "Create lead"}
+            {isMerging ? "Add to existing lead / বিদ্যমান লিডে যোগ করুন" : "Create lead / লিড তৈরি করুন"}
           </button>
           <div className={styles.footerStatus} style={{ color: blocked ? "var(--danger)" : "var(--ink-faint)" }}>
             {status}
