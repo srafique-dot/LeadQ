@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
-import { query } from "./_db";
-import { route } from "./_http";
+import { query } from "./_db.js";
+import { route } from "./_http.js";
 
 /**
  * One-time setup endpoint: seeds the mock accounts from the design handoff

@@ -1,4 +1,4 @@
-import { query } from "./_db";
+import { query } from "./_db.js";
 
 export interface LeadRow {
   id: string;

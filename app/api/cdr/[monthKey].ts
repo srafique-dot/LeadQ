@@ -1,5 +1,5 @@
-import { query } from "../_db";
-import { route, body } from "../_http";
+import { query } from "../_db.js";
+import { route, body } from "../_http.js";
 
 interface CdrRowInput {
   extension: string;

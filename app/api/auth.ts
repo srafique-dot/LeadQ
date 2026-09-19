@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
-import { query } from "./_db";
-import { route, body } from "./_http";
+import { query } from "./_db.js";
+import { route, body } from "./_http.js";
 
 const ROLE_LABEL: Record<string, string> = {
   requester: "Business development",

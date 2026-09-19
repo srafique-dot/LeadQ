@@ -1,6 +1,6 @@
-import { query } from "../_db";
-import { route, body } from "../_http";
-import { serializeLead, digitsOf, type LeadRow } from "../_leads";
+import { query } from "../_db.js";
+import { route, body } from "../_http.js";
+import { serializeLead, digitsOf, type LeadRow } from "../_leads.js";
 
 interface NewLeadBody {
   name: string;

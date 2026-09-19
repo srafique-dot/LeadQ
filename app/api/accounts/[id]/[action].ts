@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
-import { query } from "../../_db";
-import { route, body } from "../../_http";
-import { generatePassword } from "../../_passwords";
+import { query } from "../../_db.js";
+import { route, body } from "../../_http.js";
+import { generatePassword } from "../../_passwords.js";
 
 /** reset-password and toggle-active share one function — Vercel Hobby caps
  * a deployment at 12 serverless functions — dispatching on [action]. */

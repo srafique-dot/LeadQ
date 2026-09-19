@@ -1,5 +1,5 @@
-import { query } from "../_db";
-import { route } from "../_http";
+import { query } from "../_db.js";
+import { route } from "../_http.js";
 
 const TARGET_MIN = 5;
 
