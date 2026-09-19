@@ -25,6 +25,15 @@ export default route({
       return void res.status(200).json({ ok: true });
     }
 
+    if (action === "rename") {
+      const { name } = body<{ name: string }>(req);
+      const trimmed = name?.trim();
+      if (!trimmed) return void res.status(400).json({ error: "empty_name" });
+      const { rowCount } = await query("update accounts set name = $1 where employee_id = $2", [trimmed, id]);
+      if (!rowCount) return void res.status(404).json({ error: "not_found" });
+      return void res.status(200).json({ ok: true });
+    }
+
     res.status(404).json({ error: "unknown_action" });
   },
 });

@@ -8,6 +8,7 @@ import {
   createAccount,
   resetPassword,
   setAccountActive,
+  renameAccount,
   generatePassword,
 } from "../../api/auth";
 import type { Role } from "../../api/types";
@@ -24,7 +25,7 @@ const HOSPITALS = ["UMCH Main", "Medix Uttara", "MA Rashid Clinic", "All sites"]
 type Filter = "all" | "staff" | "admins" | "off";
 
 export function Users() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, refresh: refreshAuth } = useAuth();
   const [filter, setFilter] = useState<Filter>("all");
   const [flash, setFlash] = useState("");
   const [accounts, setAccounts] = useState(() => listAccounts());
@@ -40,6 +41,9 @@ export function Users() {
   const [resetTarget, setResetTarget] = useState<string | null>(null);
   const [resetStage, setResetStage] = useState<"confirm" | "done">("confirm");
   const [resetShownPassword, setResetShownPassword] = useState("");
+
+  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   if (!user) return null;
   const currentUser = user;
@@ -69,6 +73,7 @@ export function Users() {
   });
 
   const resetAccount = resetTarget ? findAccount(resetTarget) : null;
+  const renameTargetAccount = renameTarget ? findAccount(renameTarget) : null;
 
   function openAdd() {
     setNfId("");
@@ -101,6 +106,20 @@ export function Users() {
     setResetShownPassword(password);
     setResetStage("done");
     refresh();
+  }
+
+  function openRename(id: string) {
+    const account = findAccount(id);
+    setRenameTarget(id);
+    setRenameValue(account?.name ?? "");
+  }
+
+  function confirmRename() {
+    if (!renameTarget || !renameValue.trim()) return;
+    renameAccount(renameTarget, renameValue);
+    setRenameTarget(null);
+    refresh();
+    refreshAuth();
   }
 
   return (
@@ -207,6 +226,9 @@ export function Users() {
                   {a.mustChangePassword && <span className={styles.mustSetPill}>Has not signed in yet</span>}
                   {canManage && (
                     <>
+                      <button type="button" className={styles.actionBtn} onClick={() => openRename(a.employeeId)}>
+                        Edit name
+                      </button>
                       <button type="button" className={styles.actionBtn} onClick={() => openReset(a.employeeId)}>
                         Reset password
                       </button>
@@ -373,6 +395,37 @@ export function Users() {
                   Reset it
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renameTargetAccount && (
+        <div className={`${styles.overlay} ${styles.overlayCenter}`}>
+          <div className={`${styles.modal} ${styles.modalNarrow}`}>
+            <div className={styles.resetTitle}>Rename {renameTargetAccount.name}</div>
+            <div className={styles.resetBody}>
+              Their employee ID ({renameTargetAccount.employeeId}) stays the same — this only changes the name shown
+              on the roster.
+            </div>
+            <input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && renameValue.trim()) confirmRename();
+              }}
+              placeholder="As it appears on the roster"
+              className={styles.textInput}
+              style={{ marginTop: 16 }}
+              autoFocus
+            />
+            <div className={styles.resetActions}>
+              <button type="button" className={styles.cancelBtn} onClick={() => setRenameTarget(null)}>
+                Cancel
+              </button>
+              <button type="button" className={styles.confirmBtn} disabled={!renameValue.trim()} onClick={confirmRename}>
+                Save
+              </button>
             </div>
           </div>
         </div>

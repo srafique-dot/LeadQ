@@ -175,6 +175,13 @@ export function setAccountActive(employeeId: string, active: boolean) {
   saveAccounts(accounts.map((a) => (a.employeeId === employeeId ? { ...a, active } : a)));
 }
 
+/** Employee ID stays permanent — only the display name changes. Works on
+ * any account, including the superadmin's own. */
+export function renameAccount(employeeId: string, newName: string) {
+  const accounts = loadAccounts();
+  saveAccounts(accounts.map((a) => (a.employeeId === employeeId ? { ...a, name: newName.trim() } : a)));
+}
+
 export function landingPathFor(role: Role): string {
   switch (role) {
     case "requester":
