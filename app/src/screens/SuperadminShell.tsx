@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { listAccounts } from "../api/auth";
 import type { Role } from "../api/types";
 import { Requester } from "./Requester/Requester";
 import { Agent } from "./Agent/Agent";
@@ -38,7 +37,7 @@ const TAB_FOR_ROLE: Record<Role, Screen> = {
  * by overriding AuthContext's `user` for the whole subtree — no screen
  * needed to change to support it. */
 export function SuperadminShell() {
-  const { realUser, viewAsId, setViewAs } = useAuth();
+  const { realUser, accounts: allAccounts, viewAsId, setViewAs } = useAuth();
   const [screen, setScreenState] = useState<Screen>(loadStoredScreen);
 
   function setScreen(s: Screen) {
@@ -48,7 +47,7 @@ export function SuperadminShell() {
 
   if (!realUser) return null;
 
-  const accounts = listAccounts().filter((a) => a.employeeId !== realUser.employeeId);
+  const accounts = allAccounts.filter((a) => a.employeeId !== realUser.employeeId);
   const viewedAccount = viewAsId ? accounts.find((a) => a.employeeId === viewAsId) : null;
 
   return (

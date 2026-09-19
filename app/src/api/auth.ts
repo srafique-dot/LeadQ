@@ -1,100 +1,41 @@
 import type { Account, Role } from "./types";
 
 /**
- * Mock auth for phase 1. Every function here is a stand-in for a future
- * HTTP call to the real backend (POST /auth/sign-in, POST /auth/change-password,
- * ...) — callers never touch localStorage directly, so swapping the bodies
- * below for `fetch` calls later won't touch any component.
+ * Real backend calls. Every function here mirrors the shape the mock had in
+ * phase 1 — callers already treat this as async-safe where it matters — so
+ * this file is the only thing that changed to go from localStorage to the
+ * live API.
  */
 
-const ACCOUNTS_KEY = "umch.mock.accounts";
 const SESSION_KEY = "umch.session";
 const REMEMBERED_KEY = "umch.rememberedDevice";
 
-const ROLE_LABEL: Record<Role, string> = {
-  requester: "Business development",
-  agent: "Call centre agent",
-  admin: "Team lead",
-  superadmin: "Superadmin",
-};
+interface RememberedAccount {
+  employeeId: string;
+  name: string;
+  roleLabel: string;
+}
 
-// Matches the mock accounts baked into the Claude Design handoff so the two
-// stay interchangeable during review (Outbound Queue - Sign in.dc.html).
-const SEED_ACCOUNTS: Account[] = [
-  { employeeId: "NUSRAT_002", name: "Nusrat Jahan", role: "agent", roleLabel: ROLE_LABEL.agent, password: "queue123", mustChangePassword: false, callingNumber: "2102", active: true, facility: "UMCH Main" },
-  { employeeId: "FARHANA_009", name: "Farhana Islam", role: "agent", roleLabel: ROLE_LABEL.agent, password: "Kf7-r2mq", mustChangePassword: true, callingNumber: "", active: true, facility: "Medix Uttara" },
-  { employeeId: "ISHRAT_007", name: "Ishrat Sultana", role: "requester", roleLabel: ROLE_LABEL.requester, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "Medix Uttara" },
-  { employeeId: "SHAHRIAR_001", name: "Shahriar Kabir", role: "admin", roleLabel: ROLE_LABEL.admin, password: "queue123", mustChangePassword: false, callingNumber: "2001", active: true, facility: "All sites" },
-  { employeeId: "SABBIR_001", name: "Sabbir Chowdhury", role: "superadmin", roleLabel: ROLE_LABEL.superadmin, password: "queue123", mustChangePassword: false, callingNumber: "", active: true, facility: "All sites" },
-];
-
-function loadAccounts(): Account[] {
+export function getRememberedAccount(): RememberedAccount | null {
+  const raw = localStorage.getItem(REMEMBERED_KEY);
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(ACCOUNTS_KEY);
-    if (raw) return JSON.parse(raw) as Account[];
+    return JSON.parse(raw) as RememberedAccount;
   } catch {
-    /* fall through to reseed */
+    return null;
   }
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(SEED_ACCOUNTS));
-  return SEED_ACCOUNTS.slice();
-}
-
-function saveAccounts(accounts: Account[]) {
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-}
-
-export function listAccounts(): Account[] {
-  return loadAccounts();
-}
-
-export function findAccount(employeeId: string): Account | undefined {
-  const id = employeeId.trim().toUpperCase();
-  return loadAccounts().find((a) => a.employeeId === id);
-}
-
-export function getRememberedEmployeeId(): string | null {
-  return localStorage.getItem(REMEMBERED_KEY);
 }
 
 export function clearRememberedDevice() {
   localStorage.removeItem(REMEMBERED_KEY);
 }
 
-export type SignInError = "empty_id" | "unknown_id" | "empty_password" | "wrong_password";
-
-export function signIn(
-  employeeId: string,
-  password: string,
-  stayOnDevice: boolean,
-): { ok: true; account: Account } | { ok: false; error: SignInError } {
-  const id = employeeId.trim().toUpperCase();
-  if (!id) return { ok: false, error: "empty_id" };
-  const account = findAccount(id);
-  if (!account || !account.active) return { ok: false, error: "unknown_id" };
-  if (!password) return { ok: false, error: "empty_password" };
-  if (password !== account.password) return { ok: false, error: "wrong_password" };
-
-  // The device always remembers *which* ID last signed in here (that's what
-  // powers "Welcome back, {name}" on the next visit) — independent of
-  // whether the session itself survives a browser restart.
-  localStorage.setItem(REMEMBERED_KEY, account.employeeId);
-  if (stayOnDevice) {
-    localStorage.setItem(SESSION_KEY, account.employeeId);
-    sessionStorage.removeItem(SESSION_KEY);
-  } else {
-    sessionStorage.setItem(SESSION_KEY, account.employeeId);
-    localStorage.removeItem(SESSION_KEY);
-  }
-  return { ok: true, account };
+function rememberDevice(account: Account) {
+  const remembered: RememberedAccount = { employeeId: account.employeeId, name: account.name, roleLabel: account.roleLabel };
+  localStorage.setItem(REMEMBERED_KEY, JSON.stringify(remembered));
 }
 
-export function setPassword(employeeId: string, newPassword: string, stayOnDevice: boolean) {
-  const accounts = loadAccounts();
-  const next = accounts.map((a) =>
-    a.employeeId === employeeId ? { ...a, password: newPassword, mustChangePassword: false } : a,
-  );
-  saveAccounts(next);
-  localStorage.setItem(REMEMBERED_KEY, employeeId);
+function setSession(employeeId: string, stayOnDevice: boolean) {
   if (stayOnDevice) {
     localStorage.setItem(SESSION_KEY, employeeId);
     sessionStorage.removeItem(SESSION_KEY);
@@ -104,10 +45,66 @@ export function setPassword(employeeId: string, newPassword: string, stayOnDevic
   }
 }
 
-export function getCurrentUser(): Account | null {
+export type SignInError = "empty_id" | "unknown_id" | "empty_password" | "wrong_password" | "network";
+
+export async function signIn(
+  employeeId: string,
+  password: string,
+  stayOnDevice: boolean,
+): Promise<{ ok: true; account: Account } | { ok: false; error: SignInError }> {
+  const id = employeeId.trim().toUpperCase();
+  if (!id) return { ok: false, error: "empty_id" };
+  if (!password) return { ok: false, error: "empty_password" };
+
+  let json: { ok: boolean; error?: SignInError; account?: Account };
+  try {
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "sign-in", employeeId: id, password }),
+    });
+    json = await res.json();
+  } catch {
+    return { ok: false, error: "network" };
+  }
+
+  if (!json.ok || !json.account) return { ok: false, error: json.error ?? "network" };
+
+  rememberDevice(json.account);
+  setSession(json.account.employeeId, stayOnDevice);
+  return { ok: true, account: json.account };
+}
+
+export type ChangePasswordError = "too_short" | "same_as_issued" | "network";
+
+export async function setPassword(
+  account: Account,
+  newPassword: string,
+  stayOnDevice: boolean,
+): Promise<{ ok: true } | { ok: false; error: ChangePasswordError }> {
+  let json: { ok: boolean; error?: ChangePasswordError };
+  try {
+    const res = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "change-password", employeeId: account.employeeId, newPassword }),
+    });
+    json = await res.json();
+  } catch {
+    return { ok: false, error: "network" };
+  }
+  if (!json.ok) return { ok: false, error: json.error ?? "network" };
+
+  rememberDevice(account);
+  setSession(account.employeeId, stayOnDevice);
+  return { ok: true };
+}
+
+export async function getCurrentUser(): Promise<Account | null> {
   const id = sessionStorage.getItem(SESSION_KEY) ?? localStorage.getItem(SESSION_KEY);
   if (!id) return null;
-  return findAccount(id) ?? null;
+  const accounts = await listAccounts();
+  return accounts.find((a) => a.employeeId === id) ?? null;
 }
 
 export function signOut() {
@@ -141,45 +138,56 @@ export function isValidEmployeeId(id: string): boolean {
   return /^[A-Za-z]{2,}_\d{3}$/.test(id.trim());
 }
 
-export function createAccount(input: NewAccountInput): { account: Account; password: string } {
-  const accounts = loadAccounts();
-  const password = generatePassword();
-  const account: Account = {
-    employeeId: input.employeeId.trim().toUpperCase(),
-    name: input.name.trim(),
-    role: input.role,
-    roleLabel: ROLE_LABEL[input.role],
-    password,
-    mustChangePassword: true,
-    callingNumber: input.callingNumber.trim(),
-    active: true,
-    facility: input.facility,
-  };
-  saveAccounts([account, ...accounts]);
-  return { account, password };
+export function findAccountIn(accounts: Account[], employeeId: string): Account | undefined {
+  const id = employeeId.trim().toUpperCase();
+  return accounts.find((a) => a.employeeId === id);
+}
+
+export async function listAccounts(): Promise<Account[]> {
+  const res = await fetch("/api/accounts");
+  if (!res.ok) throw new Error("Could not load accounts");
+  return res.json();
+}
+
+export async function createAccount(input: NewAccountInput): Promise<{ account: Account; password: string }> {
+  const res = await fetch("/api/accounts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Could not create account");
+  return json;
 }
 
 /** Two-step reset: current password stops working immediately, a new one is
  * generated and shown once, and the account is forced to change it again. */
-export function resetPassword(employeeId: string): string {
-  const accounts = loadAccounts();
-  const password = generatePassword();
-  const next = accounts.map((a) => (a.employeeId === employeeId ? { ...a, password, mustChangePassword: true } : a));
-  saveAccounts(next);
-  return password;
+export async function resetPassword(employeeId: string): Promise<string> {
+  const res = await fetch(`/api/accounts/${employeeId}/reset-password`, { method: "POST" });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Could not reset password");
+  return json.password;
 }
 
 /** Never deletes history — just blocks future sign-in. */
-export function setAccountActive(employeeId: string, active: boolean) {
-  const accounts = loadAccounts();
-  saveAccounts(accounts.map((a) => (a.employeeId === employeeId ? { ...a, active } : a)));
+export async function setAccountActive(employeeId: string, active: boolean): Promise<void> {
+  const res = await fetch(`/api/accounts/${employeeId}/toggle-active`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ active }),
+  });
+  if (!res.ok) throw new Error("Could not update access");
 }
 
 /** Employee ID stays permanent — only the display name changes. Works on
  * any account, including the superadmin's own. */
-export function renameAccount(employeeId: string, newName: string) {
-  const accounts = loadAccounts();
-  saveAccounts(accounts.map((a) => (a.employeeId === employeeId ? { ...a, name: newName.trim() } : a)));
+export async function renameAccount(employeeId: string, newName: string): Promise<void> {
+  const res = await fetch(`/api/accounts/${employeeId}/rename`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: newName }),
+  });
+  if (!res.ok) throw new Error("Could not rename account");
 }
 
 export function landingPathFor(role: Role): string {

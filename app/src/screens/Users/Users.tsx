@@ -2,9 +2,8 @@ import { useState } from "react";
 import styles from "./Users.module.css";
 import { useAuth } from "../../context/AuthContext";
 import {
-  listAccounts,
   isValidEmployeeId,
-  findAccount,
+  findAccountIn,
   createAccount,
   resetPassword,
   setAccountActive,
@@ -25,10 +24,9 @@ const HOSPITALS = ["UMCH Main", "Medix Uttara", "MA Rashid Clinic", "All sites"]
 type Filter = "all" | "staff" | "admins" | "off";
 
 export function Users() {
-  const { user, signOut, refresh: refreshAuth } = useAuth();
+  const { user, accounts, refresh: refreshAuth, refreshAccounts, signOut } = useAuth();
   const [filter, setFilter] = useState<Filter>("all");
   const [flash, setFlash] = useState("");
-  const [accounts, setAccounts] = useState(() => listAccounts());
 
   const [addOpen, setAddOpen] = useState(false);
   const [nfId, setNfId] = useState("");
@@ -50,11 +48,7 @@ export function Users() {
   const canManage = currentUser.role === "superadmin";
   const initials = currentUser.name.split(" ").map((w) => w[0]).join("").slice(0, 2);
 
-  function refresh() {
-    setAccounts(listAccounts());
-  }
-
-  const idTaken = nfId.trim() ? !!findAccount(nfId) : false;
+  const idTaken = nfId.trim() ? !!findAccountIn(accounts, nfId) : false;
   const idOk = isValidEmployeeId(nfId);
   const blockers: string[] = [];
   if (!nfId.trim()) blockers.push("Write their employee ID.");
@@ -72,8 +66,8 @@ export function Users() {
     return filter === "staff" ? a.role === "requester" || a.role === "agent" : a.role === "admin" || a.role === "superadmin";
   });
 
-  const resetAccount = resetTarget ? findAccount(resetTarget) : null;
-  const renameTargetAccount = renameTarget ? findAccount(renameTarget) : null;
+  const resetAccount = resetTarget ? findAccountIn(accounts, resetTarget) : null;
+  const renameTargetAccount = renameTarget ? findAccountIn(accounts, renameTarget) : null;
 
   function openAdd() {
     setNfId("");
@@ -86,12 +80,16 @@ export function Users() {
     setAddOpen(true);
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     if (blockers.length || !nfRole) return;
-    const { account, password } = createAccount({ employeeId: nfId, name: nfName, role: nfRole, facility: nfFacility, callingNumber: nfExt });
-    setAddOpen(false);
-    setFlash(`${account.name} (${account.employeeId}) can sign in — password ${password}. Write it down now.`);
-    refresh();
+    try {
+      const { account, password } = await createAccount({ employeeId: nfId, name: nfName, role: nfRole, facility: nfFacility, callingNumber: nfExt });
+      setAddOpen(false);
+      setFlash(`${account.name} (${account.employeeId}) can sign in — password ${password}. Write it down now.`);
+      await refreshAccounts();
+    } catch (err) {
+      setFlash(err instanceof Error ? err.message : "Could not create the account.");
+    }
   }
 
   function openReset(id: string) {
@@ -100,26 +98,26 @@ export function Users() {
     setResetShownPassword("");
   }
 
-  function confirmReset() {
+  async function confirmReset() {
     if (!resetTarget) return;
-    const password = resetPassword(resetTarget);
+    const password = await resetPassword(resetTarget);
     setResetShownPassword(password);
     setResetStage("done");
-    refresh();
+    await refreshAccounts();
   }
 
   function openRename(id: string) {
-    const account = findAccount(id);
+    const account = findAccountIn(accounts, id);
     setRenameTarget(id);
     setRenameValue(account?.name ?? "");
   }
 
-  function confirmRename() {
+  async function confirmRename() {
     if (!renameTarget || !renameValue.trim()) return;
-    renameAccount(renameTarget, renameValue);
+    await renameAccount(renameTarget, renameValue);
     setRenameTarget(null);
-    refresh();
-    refreshAuth();
+    await refreshAccounts();
+    await refreshAuth();
   }
 
   return (
@@ -236,10 +234,10 @@ export function Users() {
                         type="button"
                         className={styles.actionBtn}
                         style={a.active ? { color: "var(--danger)", borderColor: "var(--danger-tint-border)" } : { color: "var(--primary-dark)", borderColor: "var(--primary-tint-border)" }}
-                        onClick={() => {
-                          setAccountActive(a.employeeId, !a.active);
+                        onClick={async () => {
+                          await setAccountActive(a.employeeId, !a.active);
                           setFlash(a.active ? `${a.name} can no longer sign in. Their logged calls stay on record.` : `${a.name} can sign in again.`);
-                          refresh();
+                          await refreshAccounts();
                         }}
                       >
                         {a.active ? "Remove access" : "Restore access"}

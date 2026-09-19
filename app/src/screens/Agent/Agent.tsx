@@ -49,7 +49,7 @@ function nextRunTime(): string {
 export function Agent() {
   const { user } = useAuth();
 
-  const [queue, setQueue] = useState<Lead[]>(() => getAgentQueue());
+  const [queue, setQueue] = useState<Lead[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [phase, setPhase] = useState<"brief" | "disposition">("brief");
   const [l1, setL1] = useState<Level1Code | null>(null);
@@ -75,11 +75,15 @@ export function Agent() {
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    if (user) refreshQueue();
+  }, [user?.employeeId]);
+
   if (!user) return null;
   const currentUser = user;
 
   function refreshQueue() {
-    setQueue(getAgentQueue());
+    getAgentQueue().then(setQueue);
   }
 
   function resetDispositionState() {
@@ -124,12 +128,12 @@ export function Agent() {
         ? "Call 4 of 4 — this closes the lead."
         : "Saves and opens your next lead.";
 
-  function handleSave() {
+  async function handleSave() {
     if (!lead || blockers.length) return;
     const l2Meta = LEVEL2.find((o) => o.code === l2);
     const l1Meta = LEVEL1.find((o) => o.code === l1);
     const label = (l2Meta ? l2Meta.label : l1Meta ? l1Meta.label : "Saved") + " — " + lead.name;
-    saveDisposition(lead.id, {
+    await saveDisposition(lead.id, {
       l1: l1!,
       l2,
       note,
@@ -146,9 +150,9 @@ export function Agent() {
     refreshQueue();
   }
 
-  function handleEscalateConfirm() {
+  async function handleEscalateConfirm() {
     if (!lead) return;
-    escalateLead(lead.id, currentUser.employeeId, currentUser.name);
+    await escalateLead(lead.id, currentUser.employeeId, currentUser.name);
     setEscalateOpen(false);
     setCurrentId(null);
     resetDispositionState();
@@ -344,7 +348,7 @@ export function Agent() {
                         <span className={styles.mergedHeadText}>
                           Same phone number came in {lead.entries.length || 1} times — treated as one lead
                         </span>
-                        <button type="button" className={styles.splitBtn} onClick={() => { splitMergedLead(lead.id); refreshQueue(); }}>
+                        <button type="button" className={styles.splitBtn} onClick={async () => { await splitMergedLead(lead.id); refreshQueue(); }}>
                           Not the same person
                         </button>
                       </div>

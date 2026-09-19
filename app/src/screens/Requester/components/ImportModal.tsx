@@ -44,14 +44,14 @@ export function ImportModal({ currentUser, onClose, onImported }: ImportModalPro
     if (!ready) return;
     file
       .text()
-      .then((text) => {
+      .then(async (text) => {
         const rows = parseCsv(text);
         if (!rows.length) {
           setParseError("Couldn’t find any rows — check the file has name, phone, hospital, doctor or department.");
           return;
         }
         setParseError("");
-        const outcome = importLeads(rows, cohort.trim(), currentUser.employeeId, currentUser.name);
+        const outcome = await importLeads(rows, cohort.trim(), currentUser.employeeId, currentUser.name);
         setResult(outcome);
         onImported(outcome, cohort.trim());
       })

@@ -6,7 +6,8 @@ import { Supervisor } from "./screens/Supervisor/Supervisor";
 import { SuperadminShell } from "./screens/SuperadminShell";
 
 function Routed() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  if (loading) return null;
   if (!user) return <SignIn />;
   if (user.role === "requester") return <Requester />;
   if (user.role === "agent") return <Agent />;

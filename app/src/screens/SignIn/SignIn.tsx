@@ -3,12 +3,12 @@ import styles from "./SignIn.module.css";
 import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { useAuth } from "../../context/AuthContext";
 import {
-  findAccount,
-  getRememberedEmployeeId,
+  getRememberedAccount,
   clearRememberedDevice,
   signIn,
   setPassword,
   type SignInError,
+  type ChangePasswordError,
 } from "../../api/auth";
 import type { Account } from "../../api/types";
 
@@ -17,6 +17,13 @@ const ERROR_TEXT: Record<SignInError, string> = {
   unknown_id: "No account with that employee ID. Check it with your team lead.",
   empty_password: "Type your password.",
   wrong_password: "That password does not match. A superadmin can reset it for you.",
+  network: "Couldn't reach the server. Check your connection and try again.",
+};
+
+const CHANGE_ERROR_TEXT: Record<ChangePasswordError, string> = {
+  too_short: "At least 8 characters.",
+  same_as_issued: "Pick something different from the one you were given.",
+  network: "Couldn't reach the server. Check your connection and try again.",
 };
 
 function initials(name: string): string {
@@ -43,8 +50,8 @@ export function SignIn() {
   const narrow = useMediaQuery("(max-width: 560px)");
   const deviceWord = narrow ? "phone" : "computer";
 
-  const [remembered, setRemembered] = useState<string | null>(() => getRememberedEmployeeId());
-  const rememberedAccount = remembered ? (findAccount(remembered) ?? null) : null;
+  const [remembered, setRemembered] = useState(() => getRememberedAccount());
+  const rememberedAccount = remembered;
 
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
@@ -57,26 +64,25 @@ export function SignIn() {
   const [pendingAccount, setPendingAccount] = useState<Account | null>(null);
   const [newPw, setNewPw] = useState("");
   const [repeatPw, setRepeatPw] = useState("");
+  const [saveError, setSaveError] = useState("");
 
-  function attempt() {
+  async function attempt() {
     const targetId = rememberedAccount ? rememberedAccount.employeeId : id;
-    const result = signIn(targetId, pw, stay);
+    setBusy(true);
+    const result = await signIn(targetId, pw, stay);
+    setBusy(false);
     if (!result.ok) {
       setError(ERROR_TEXT[result.error]);
       return;
     }
     setError("");
-    setBusy(true);
-    window.setTimeout(() => {
-      setBusy(false);
-      setPw("");
-      if (result.account.mustChangePassword) {
-        setPendingAccount(result.account);
-        setStage("change");
-      } else {
-        refresh();
-      }
-    }, 420);
+    setPw("");
+    if (result.account.mustChangePassword) {
+      setPendingAccount(result.account);
+      setStage("change");
+    } else {
+      refresh();
+    }
   }
 
   const strength = strengthOf(newPw);
@@ -84,17 +90,22 @@ export function SignIn() {
     ? ""
     : newPw.length < 8
       ? "At least 8 characters."
-      : newPw === pendingAccount.password
-        ? "Pick something different from the one you were given."
-        : !repeatPw
-          ? "Type it a second time."
-          : repeatPw !== newPw
-            ? "The two do not match."
-            : "";
+      : !repeatPw
+        ? "Type it a second time."
+        : repeatPw !== newPw
+          ? "The two do not match."
+          : "";
 
-  function saveNewPassword() {
+  async function saveNewPassword() {
     if (!pendingAccount || changeBlocker) return;
-    setPassword(pendingAccount.employeeId, newPw, stay);
+    setSaveError("");
+    setBusy(true);
+    const result = await setPassword(pendingAccount, newPw, stay);
+    setBusy(false);
+    if (!result.ok) {
+      setSaveError(CHANGE_ERROR_TEXT[result.error]);
+      return;
+    }
     refresh();
   }
 
@@ -169,22 +180,22 @@ export function SignIn() {
 
               <button
                 type="button"
-                disabled={!!changeBlocker}
+                disabled={!!changeBlocker || busy}
                 onClick={saveNewPassword}
                 className={styles.submitBtn}
                 style={
-                  changeBlocker
+                  changeBlocker || busy
                     ? { background: "var(--disabled-btn)", opacity: 0.75 }
                     : undefined
                 }
               >
-                Save it and start work
+                {busy ? "Saving…" : "Save it and start work"}
               </button>
               <div
                 className={styles.changeNote}
-                style={{ color: changeBlocker ? "var(--danger)" : "var(--ink-faint)" }}
+                style={{ color: changeBlocker || saveError ? "var(--danger)" : "var(--ink-faint)" }}
               >
-                {changeBlocker || "Saved on your account only. Write it somewhere safe."}
+                {changeBlocker || saveError || "Saved on your account only. Write it somewhere safe."}
               </div>
             </div>
           </div>
@@ -286,7 +297,7 @@ export function SignIn() {
               <span className={styles.checkLabel}>Stay signed in on this {deviceWord}</span>
             </button>
 
-            <button type="button" onClick={attempt} className={`${styles.submitBtn} ${busy ? styles.busy : ""}`}>
+            <button type="button" disabled={busy} onClick={attempt} className={`${styles.submitBtn} ${busy ? styles.busy : ""}`}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
           </div>
@@ -294,11 +305,6 @@ export function SignIn() {
           <div className={styles.footer}>
             Forgotten it? A superadmin resets it for you — there is no email link. Ask your team lead.
           </div>
-        </div>
-
-        <div className={styles.demoHint}>
-          Mock accounts: NUSRAT_002 / queue123 signs straight in · FARHANA_009 / Kf7-r2mq is a brand new account and must pick
-          a password.
         </div>
       </div>
     </div>

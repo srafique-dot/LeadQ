@@ -5,11 +5,6 @@ export interface Account {
   name: string;
   role: Role;
   roleLabel: string;
-  /** Mock-only plaintext password. A real backend hashes this one-way and
-   * never returns it — the UI's promise ("nobody can read it back") holds
-   * here too: nothing in this module exposes an existing password, only
-   * verify/set operations. */
-  password: string;
   mustChangePassword: boolean;
   /** Desk extension or mobile they dial from. Required to match them against
    * a monthly CDR export, which carries no names. */

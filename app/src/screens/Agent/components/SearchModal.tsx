@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import styles from "../Agent.module.css";
 import { searchLeads } from "../../../api/leads";
+import type { Lead } from "../../../api/types";
 
 interface SearchModalProps {
   term: string;
@@ -9,7 +11,16 @@ interface SearchModalProps {
 }
 
 export function SearchModal({ term, onTermChange, onJump, onClose }: SearchModalProps) {
-  const results = searchLeads(term);
+  const [results, setResults] = useState<Lead[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    searchLeads(term).then((r) => {
+      if (!cancelled) setResults(r);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [term]);
   return (
     <div className={styles.smallOverlay}>
       <div className={styles.smallModal}>

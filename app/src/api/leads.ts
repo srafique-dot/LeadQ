@@ -1,12 +1,12 @@
-import type { Lead, LeadStatus, LeadType, NewLeadInput, Level1Code, Level2Code, DispositionRecord } from "./types";
+import type { Lead, LeadStatus, LeadType, NewLeadInput, Level1Code, Level2Code } from "./types";
 
 /**
- * Mock leads store for phase 1. Same contract-first shape as auth.ts: every
- * export here is what a real `/leads` API would expose, backed for now by
- * localStorage instead of Postgres.
+ * Real backend calls. Every function here mirrors the mock's shape from
+ * phase 1 — this file is the only thing that changed to go from
+ * localStorage to the live API. A few functions consolidate into a single
+ * endpoint where the real backend does that more efficiently than the mock
+ * ever could (see getSupervisorStats, getCdrMonth).
  */
-
-const LEADS_KEY = "umch.mock.leads";
 
 export const LEAD_TYPES: { code: LeadType; label: string }[] = [
   { code: "appointment", label: "Doctor appointment" },
@@ -20,141 +20,55 @@ export function leadTypeLabel(t: LeadType): string {
   return LEAD_TYPES.find((o) => o.code === t)?.label ?? t;
 }
 
-function base(over: Partial<Lead> & Pick<Lead, "id" | "name" | "phone" | "facility" | "status" | "detail" | "createdAt">): Lead {
-  return {
-    leadType: "appointment",
-    area: "",
-    doctor: "",
-    department: "",
-    patientName: "",
-    wantDate: "",
-    preferredTime: "",
-    email: "",
-    note: "",
-    urgent: false,
-    urgentReason: "",
-    merged: false,
-    cohort: "",
-    ownerId: "ISHRAT_007",
-    ownerName: "Ishrat Sultana",
-    channel: "Manual entry",
-    existing: false,
-    attempt: 1,
-    history: [],
-    entries: [],
-    nextActionDate: "",
-    erpRefType: "",
-    erpRefValue: "",
-    escalated: false,
-    escalatedBy: "",
-    escalatedAt: "",
-    ...over,
-  };
-}
-
-const SEED_LEADS: Lead[] = [
-  base({ id: "L-24612", name: "Ummey Habiba Nahar", phone: "+880 1741 556 022", facility: "UMCH Main", doctor: "Prof. A.Q.M. Mohsen", patientName: "her son", status: "waiting", detail: "Urgent · first in the queue · 1m", urgent: true, urgentReason: "Referred by Prof. Mohsen himself", channel: "Website LP", createdAt: "2026-09-08T08:00:00.000Z" }),
-  base({ id: "L-24559", name: "Shamsun Nahar", phone: "+880 1521 330 774", facility: "Medix Uttara", doctor: "Dr. Syeda Nure Jannat", status: "booked", detail: "Booked + paid · 06 Sep", cohort: "Sep health camp — Uttara", channel: "Meta Lead Ads", createdAt: "2026-09-06T08:00:00.000Z" }),
-  base({ id: "L-24601", name: "Kamrul Hasan", phone: "+880 1713 908 221", facility: "UMCH Main", doctor: "Prof. A.Q.M. Mohsen", status: "waiting", detail: "In the queue · 4m", channel: "Google Lead Form", createdAt: "2026-09-08T07:56:00.000Z" }),
-  base({ id: "L-24588", name: "Sultana Razia", phone: "+880 1911 776 540", facility: "Medix Uttara", doctor: "Dr. Sumia Bari", status: "trying", detail: "Call 2 of 4 · no answer", attempt: 2, cohort: "Sep health camp — Uttara", channel: "Website LP",
-    history: [{ attempt: 1, when: "07 Sep, 10:12 AM", whenISO: "2026-09-07T10:12:00.000Z", agentId: "NUSRAT_002", agentName: "Nusrat Jahan", l1: "not_responding", l2: null, note: "Rang out, no answer." }],
-    createdAt: "2026-09-06T09:00:00.000Z" }),
-  base({ id: "L-24572", name: "Rahima Khatun", phone: "+880 1711 204 556", facility: "Medix Uttara", department: "Cardiology", status: "trying", detail: "Merged with a Meta lead · call 1 of 4", merged: true, cohort: "Meta ads — Sep", channel: "Meta Lead Ads",
-    entries: [
-      { channel: "Meta Lead Ads", when: "05 Sep, 11:42 AM", service: "Cardiology", note: "My father has chest pain since 2 weeks. Please advise cost of a full cardiac check up." },
-      { channel: "Website LP", when: "04 Sep, 09:15 PM", service: "Cardiology", note: "Chest pain, need to see a heart doctor. Please call." },
-    ],
-    createdAt: "2026-09-05T09:00:00.000Z" }),
-  base({ id: "L-24540", name: "Jamil Uddin", phone: "+880 1611 200 913", facility: "UMCH Main", department: "General Medicine", status: "closed", detail: "Not interested — price · 05 Sep", cohort: "Meta ads — Sep", channel: "Meta Lead Ads",
-    history: [{ attempt: 1, when: "05 Sep, 03:20 PM", whenISO: "2026-09-05T15:20:00.000Z", agentId: "NUSRAT_002", agentName: "Nusrat Jahan", l1: "connected", l2: "ni_price", note: "Package above budget." }],
-    createdAt: "2026-09-05T08:00:00.000Z" }),
-];
-
-function load(): Lead[] {
-  try {
-    const raw = localStorage.getItem(LEADS_KEY);
-    if (raw) return JSON.parse(raw) as Lead[];
-  } catch {
-    /* fall through to reseed */
-  }
-  localStorage.setItem(LEADS_KEY, JSON.stringify(SEED_LEADS));
-  return SEED_LEADS.slice();
-}
-
-function save(leads: Lead[]) {
-  localStorage.setItem(LEADS_KEY, JSON.stringify(leads));
-}
-
 export function digitsOf(phone: string): string {
   return String(phone || "").replace(/\D/g, "").slice(-10);
 }
 
-export function listLeadsForOwner(ownerId: string): Lead[] {
-  return load()
-    .filter((l) => l.ownerId === ownerId)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+async function getJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${url}`);
+  return res.json();
 }
 
-export function findLeadByPhone(phone: string): Lead | undefined {
-  const digits = digitsOf(phone);
-  if (digits.length < 7) return undefined;
-  return load().find((l) => digitsOf(l.phone) === digits);
+async function postJson<T>(url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? `Request failed: ${url}`);
+  return json;
 }
 
-export function getLead(id: string): Lead | undefined {
-  return load().find((l) => l.id === id);
+export function listLeadsForOwner(ownerId: string): Promise<Lead[]> {
+  return getJson(`/api/leads?ownerId=${encodeURIComponent(ownerId)}`);
 }
 
-function serviceLine(input: { doctor: string; department: string; patientName: string }): string {
+export async function findLeadByPhone(phone: string): Promise<Lead | undefined> {
+  if (digitsOf(phone).length < 7) return undefined;
+  const lead = await getJson<Lead | null>(`/api/leads?phone=${encodeURIComponent(phone)}`);
+  return lead ?? undefined;
+}
+
+export async function getLead(id: string): Promise<Lead | undefined> {
+  const all = await getAllLeads();
+  return all.find((l) => l.id === id);
+}
+
+export function serviceLine(input: { doctor: string; department: string; patientName: string }): string {
   const who = input.doctor.trim() || input.department.trim();
   return input.patientName.trim() ? `${who} · for ${input.patientName.trim()}` : who;
 }
 
-export function createLead(input: NewLeadInput, ownerId: string, ownerName: string, channel = "Manual entry"): Lead {
-  const leads = load();
-  const lead = base({
-    id: "L-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
-    name: input.name.trim(),
-    phone: input.phone.trim(),
-    leadType: input.leadType,
-    facility: input.facility,
-    area: input.area.trim(),
-    doctor: input.doctor.trim(),
-    department: input.department.trim(),
-    patientName: input.patientName.trim(),
-    wantDate: input.wantDate,
-    preferredTime: input.preferredTime,
-    email: input.email.trim(),
-    note: input.note.trim(),
-    status: "waiting",
-    detail: input.urgent ? "Urgent · first in the queue · just now" : "In the queue · just now",
-    urgent: input.urgent,
-    urgentReason: input.urgentReason.trim(),
-    cohort: input.cohort,
-    ownerId,
-    ownerName,
-    channel,
-    createdAt: new Date().toISOString(),
-  });
-  save([lead, ...leads]);
-  return lead;
+export function createLead(input: NewLeadInput, ownerId: string, ownerName: string, channel = "Manual entry"): Promise<Lead> {
+  return postJson("/api/leads", { ...input, ownerId, ownerName, channel });
 }
 
 /** Attaches a new enquiry to an existing lead on the same phone number
  * instead of creating a second card — the agent still sees one lead. */
-export function mergeIntoLead(existingId: string, entry?: { channel: string; service: string; note: string }): Lead {
-  const leads = load();
-  const next = leads.map((l) => {
-    if (l.id !== existingId) return l;
-    const firstEntry = l.entries.length ? l.entries : [{ channel: l.channel, when: l.createdAt, service: serviceLine(l), note: l.note }];
-    return {
-      ...l,
-      merged: true,
-      entries: entry ? [{ channel: entry.channel, when: "just now", service: entry.service, note: entry.note }, ...firstEntry] : firstEntry,
-    };
-  });
-  save(next);
-  return next.find((l) => l.id === existingId)!;
+export function mergeIntoLead(existingId: string, entry?: { channel: string; service: string; note: string }): Promise<Lead> {
+  return postJson(`/api/leads/${existingId}/merge`, { entry });
 }
 
 export interface ImportRow {
@@ -169,40 +83,8 @@ export interface ImportResult {
   duplicates: { row: ImportRow; existing: Lead }[];
 }
 
-export function importLeads(rows: ImportRow[], cohort: string, ownerId: string, ownerName: string): ImportResult {
-  const created: Lead[] = [];
-  const duplicates: ImportResult["duplicates"] = [];
-  for (const row of rows) {
-    const existing = findLeadByPhone(row.phone);
-    if (existing) {
-      duplicates.push({ row, existing });
-      continue;
-    }
-    created.push(
-      createLead(
-        {
-          name: row.name,
-          phone: row.phone,
-          leadType: "appointment",
-          facility: row.facility,
-          area: "",
-          doctor: row.doctorOrDept,
-          department: "",
-          patientName: "",
-          wantDate: "",
-          preferredTime: "",
-          email: "",
-          note: "",
-          urgent: false,
-          urgentReason: "",
-          cohort,
-        },
-        ownerId,
-        ownerName,
-      ),
-    );
-  }
-  return { created, duplicates };
+export function importLeads(rows: ImportRow[], cohort: string, ownerId: string, ownerName: string): Promise<ImportResult> {
+  return postJson("/api/leads?action=import", { rows, cohort, ownerId, ownerName });
 }
 
 export function statusLabel(status: LeadStatus): string {
@@ -256,20 +138,13 @@ export const MAX_ATTEMPTS = 4;
 /** Leads eligible for an agent to work: open, not sent to a supervisor,
  * urgent first, then oldest first (arrival order). System decides — the
  * agent doesn't choose. */
-export function getAgentQueue(): Lead[] {
-  const today = new Date().toISOString().slice(0, 10);
-  return load()
-    .filter((l) => (l.status === "waiting" || l.status === "trying") && !l.escalated)
-    .filter((l) => !l.nextActionDate || l.nextActionDate <= today)
-    .sort((a, b) => {
-      if (a.urgent !== b.urgent) return a.urgent ? -1 : 1;
-      return a.createdAt < b.createdAt ? -1 : 1;
-    });
+export function getAgentQueue(): Promise<Lead[]> {
+  return getJson("/api/leads?queue=1");
 }
 
-export function searchLeads(term: string): Lead[] {
+export async function searchLeads(term: string): Promise<Lead[]> {
   const t = term.trim().toLowerCase();
-  const all = load();
+  const all = await getAllLeads();
   if (!t) return all.slice(0, 20);
   return all.filter((l) => (l.name + l.phone).toLowerCase().includes(t)).slice(0, 20);
 }
@@ -285,112 +160,29 @@ export interface DispositionInput {
   agentName: string;
 }
 
-function formatNow(): string {
-  const d = new Date();
-  const pad = (n: number) => (n < 10 ? "0" + n : String(n));
-  const hours = d.getHours();
-  const h12 = hours % 12 === 0 ? 12 : hours % 12;
-  return `${pad(d.getDate())} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getMonth()]}, ${pad(h12)}:${pad(d.getMinutes())} ${hours >= 12 ? "PM" : "AM"}`;
+/** Applies a two-level call disposition to a lead. The status-transition
+ * rules (terminal/failed/callback ladder) live server-side now, ported
+ * 1:1 from this file's original mock logic — see api/leads/[id]/[action].ts. */
+export function saveDisposition(leadId: string, input: DispositionInput): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/disposition`, input);
 }
 
-/** Applies a two-level call disposition to a lead: logs history, and moves
- * the lead to its next state per the attempt ladder (README "Agent call
- * flow" save blockers + terminal/failed code lists). */
-export function saveDisposition(leadId: string, input: DispositionInput): Lead {
-  const leads = load();
-  const lead = leads.find((l) => l.id === leadId);
-  if (!lead) throw new Error("Lead not found: " + leadId);
-
-  const record: DispositionRecord = {
-    attempt: lead.attempt,
-    when: formatNow(),
-    whenISO: new Date().toISOString(),
-    agentId: input.agentId,
-    agentName: input.agentName,
-    l1: input.l1,
-    l2: input.l2,
-    note: input.note.trim(),
-  };
-
-  const isTerminal = input.l2 && TERMINAL.includes(input.l2);
-  const isFailed = FAILED.includes(input.l1);
-  const isCallback = input.l2 === "callback_later";
-  const l2Meta = LEVEL2.find((o) => o.code === input.l2);
-
-  let status: LeadStatus = lead.status;
-  let attempt = lead.attempt;
-  let detail = lead.detail;
-  let nextActionDate = "";
-
-  if (isTerminal) {
-    status = l2Meta?.kind === "win" ? "booked" : "closed";
-    detail = (l2Meta?.label ?? "Closed") + " · " + formatNow();
-  } else if (isFailed) {
-    if (lead.attempt >= MAX_ATTEMPTS) {
-      status = "closed";
-      detail = "Exhausted after 4 attempts · " + formatNow();
-    } else {
-      attempt = lead.attempt + 1;
-      status = "trying";
-      const back = new Date(Date.now() + 12 * 60000);
-      const pad = (n: number) => (n < 10 ? "0" + n : String(n));
-      detail = `Call ${attempt} of 4 · back around ${pad(back.getHours())}:${pad(back.getMinutes())}`;
-    }
-  } else if (isCallback) {
-    status = "trying";
-    nextActionDate = input.nextActionDate;
-    detail = "Callback scheduled · " + input.nextActionDate;
-  } else {
-    // info_given or another open, non-scheduled connected outcome
-    status = "trying";
-    detail = (l2Meta?.label ?? "Open") + " · " + formatNow();
-  }
-
-  const next = leads.map((l) =>
-    l.id === leadId
-      ? {
-          ...l,
-          status,
-          attempt,
-          detail,
-          nextActionDate,
-          history: [...l.history, record],
-          erpRefType: input.erpRefType || l.erpRefType,
-          erpRefValue: input.erpRefValue || l.erpRefValue,
-        }
-      : l,
-  );
-  save(next);
-  return next.find((l) => l.id === leadId)!;
+export function escalateLead(leadId: string, agentId: string, agentName: string): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/escalate`, { agentId, agentName });
 }
 
-export function escalateLead(leadId: string, agentId: string, agentName: string): Lead {
-  const leads = load();
-  const next = leads.map((l) =>
-    l.id === leadId ? { ...l, escalated: true, escalatedBy: `${agentId} ${agentName}`, escalatedAt: formatNow() } : l,
-  );
-  save(next);
-  return next.find((l) => l.id === leadId)!;
+export function splitMergedLead(leadId: string): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/split`);
 }
 
-export function splitMergedLead(leadId: string): Lead {
-  const leads = load();
-  const next = leads.map((l) => (l.id === leadId ? { ...l, merged: false } : l));
-  save(next);
-  return next.find((l) => l.id === leadId)!;
+export function unescalateLead(leadId: string): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/unescalate`);
 }
 
 // ---- Supervisor: live floor (app data only — no call durations, no dial counts) ----
 
-export function getAllLeads(): Lead[] {
-  return load();
-}
-
-function isToday(iso: string): boolean {
-  if (!iso) return false;
-  const d = new Date(iso);
-  const n = new Date();
-  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+export function getAllLeads(): Promise<Lead[]> {
+  return getJson("/api/leads");
 }
 
 export interface AgentDayStats {
@@ -402,34 +194,6 @@ export interface AgentDayStats {
   noAnswer: number;
 }
 
-/** What the app itself can honestly know about today's work, per agent —
- * derived from disposition history, not from any live presence signal. */
-export function getTodayStatsByAgent(): AgentDayStats[] {
-  const byAgent = new Map<string, AgentDayStats>();
-  for (const lead of load()) {
-    for (const h of lead.history) {
-      if (!isToday(h.whenISO)) continue;
-      const key = h.agentId;
-      const cur = byAgent.get(key) ?? { agentId: h.agentId, agentName: h.agentName, worked: 0, outcomes: 0, booked: 0, noAnswer: 0 };
-      cur.outcomes += 1;
-      if (h.l2 && LEVEL2.find((o) => o.code === h.l2)?.kind === "win") cur.booked += 1;
-      if (FAILED.includes(h.l1)) cur.noAnswer += 1;
-      byAgent.set(key, cur);
-    }
-  }
-  // "worked" = distinct leads the agent touched today
-  const touched = new Map<string, Set<string>>();
-  for (const lead of load()) {
-    for (const h of lead.history) {
-      if (!isToday(h.whenISO)) continue;
-      if (!touched.has(h.agentId)) touched.set(h.agentId, new Set());
-      touched.get(h.agentId)!.add(lead.id);
-    }
-  }
-  for (const [agentId, stat] of byAgent) stat.worked = touched.get(agentId)?.size ?? 0;
-  return Array.from(byAgent.values()).sort((a, b) => b.booked - a.booked);
-}
-
 export interface QueueStats {
   waiting: number;
   oldestWaitMin: number;
@@ -438,44 +202,44 @@ export interface QueueStats {
   bookedToday: number;
 }
 
-export function getQueueStats(): QueueStats {
-  const leads = load();
-  const waitingLeads = leads.filter((l) => l.status === "waiting");
-  const oldestWaitMin = waitingLeads.reduce((max, l) => {
-    const m = Math.floor((Date.now() - Date.parse(l.createdAt)) / 60000);
-    return Math.max(max, m);
-  }, 0);
-  const dayStats = getTodayStatsByAgent();
+export interface LeadSummary {
+  id: string;
+  name: string;
+  facility: string;
+  urgent?: boolean;
+  createdAt?: string;
+  nextActionDate?: string;
+  escalatedBy?: string;
+  escalatedAt?: string;
+}
+
+export interface SupervisorStats {
+  queue: QueueStats;
+  dayStatsByAgent: AgentDayStats[];
+  pastTarget: LeadSummary[];
+  overdueCallbacks: LeadSummary[];
+  escalated: LeadSummary[];
+}
+
+/** One combined call — the server aggregates today's queue/agent stats plus
+ * the three "needs attention" lists (past target, overdue callback,
+ * escalated) in a single query round trip. */
+export async function getSupervisorStats(): Promise<SupervisorStats> {
+  const json = await getJson<{
+    queue: QueueStats;
+    dayStatsByAgent: AgentDayStats[];
+    pastTarget: { id: string; name: string; facility: string; urgent: boolean; created_at: string }[];
+    overdueCallbacks: { id: string; name: string; facility: string; next_action_date: string }[];
+    escalated: { id: string; name: string; escalated_by: string; escalated_at: string }[];
+  }>("/api/supervisor/stats");
+
   return {
-    waiting: waitingLeads.length,
-    oldestWaitMin,
-    workedToday: dayStats.reduce((n, a) => n + a.worked, 0),
-    outcomesToday: dayStats.reduce((n, a) => n + a.outcomes, 0),
-    bookedToday: dayStats.reduce((n, a) => n + a.booked, 0),
+    queue: json.queue,
+    dayStatsByAgent: json.dayStatsByAgent,
+    pastTarget: json.pastTarget.map((r) => ({ id: r.id, name: r.name, facility: r.facility, urgent: r.urgent, createdAt: r.created_at })),
+    overdueCallbacks: json.overdueCallbacks.map((r) => ({ id: r.id, name: r.name, facility: r.facility, nextActionDate: r.next_action_date })),
+    escalated: json.escalated.map((r) => ({ id: r.id, name: r.name, facility: "", escalatedBy: r.escalated_by, escalatedAt: r.escalated_at })),
   };
-}
-
-/** Leads waiting for a first call longer than the target, with nobody having
- * logged an outcome on them yet. */
-export function getLeadsPastTarget(targetMinutes: number): Lead[] {
-  return load().filter((l) => l.status === "waiting" && l.history.length === 0 && Date.now() - Date.parse(l.createdAt) > targetMinutes * 60000);
-}
-
-/** Callbacks whose promised date has already passed and are still open. */
-export function getOverdueCallbacks(): Lead[] {
-  const today = new Date().toISOString().slice(0, 10);
-  return load().filter((l) => l.nextActionDate && l.nextActionDate < today && (l.status === "waiting" || l.status === "trying"));
-}
-
-export function getEscalatedLeads(): Lead[] {
-  return load().filter((l) => l.escalated);
-}
-
-export function unescalateLead(leadId: string): Lead {
-  const leads = load();
-  const next = leads.map((l) => (l.id === leadId ? { ...l, escalated: false, escalatedBy: "", escalatedAt: "" } : l));
-  save(next);
-  return next.find((l) => l.id === leadId)!;
 }
 
 // ---- Supervisor: monthly CDR report ----
@@ -488,30 +252,27 @@ export interface CdrRow {
   connected: boolean;
 }
 
+export interface CdrAgentStat {
+  id: string;
+  name: string;
+  dials: number;
+  connected: number;
+  talkSec: number;
+  booked: number;
+  missing: number;
+}
+
 export interface CdrMonth {
   fileName: string;
-  uploadedAt: string;
   uploadedBy: string;
-  monthKey: string;
-  rows: CdrRow[];
+  uploadedAt: string;
+  perAgent: CdrAgentStat[];
 }
 
-const CDR_KEY = "umch.mock.cdr";
-
-export function listCdrMonths(): Record<string, CdrMonth> {
-  try {
-    const raw = localStorage.getItem(CDR_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {
-    /* ignore */
-  }
-  return {};
+export function getCdrMonth(monthKey: string): Promise<CdrMonth | null> {
+  return getJson(`/api/cdr/${monthKey}`);
 }
 
-export function saveCdrMonth(monthKey: string, month: CdrMonth) {
-  const all = listCdrMonths();
-  all[monthKey] = month;
-  localStorage.setItem(CDR_KEY, JSON.stringify(all));
+export function saveCdrMonth(monthKey: string, fileName: string, uploadedBy: string, rows: CdrRow[]): Promise<{ ok: true; count: number }> {
+  return postJson(`/api/cdr/${monthKey}`, { fileName, uploadedBy, rows });
 }
-
-export { serviceLine };

@@ -1,20 +1,18 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./Supervisor.module.css";
 import { useAuth } from "../../context/AuthContext";
-import { listAccounts } from "../../api/auth";
 import {
-  getQueueStats,
-  getTodayStatsByAgent,
-  getLeadsPastTarget,
-  getOverdueCallbacks,
-  getEscalatedLeads,
+  getSupervisorStats,
   unescalateLead,
   getAllLeads,
-  listCdrMonths,
+  getCdrMonth,
   saveCdrMonth,
   LEAD_TYPES,
   type CdrRow,
+  type CdrMonth,
+  type SupervisorStats,
 } from "../../api/leads";
+import type { Lead } from "../../api/types";
 
 const TARGET_MIN = 5;
 
@@ -51,25 +49,45 @@ function parseCdrCsv(text: string): CdrRow[] {
 }
 
 export function Supervisor() {
-  const { user, signOut } = useAuth();
+  const { user, accounts, signOut } = useAuth();
   const [tab, setTab] = useState<"live" | "month">("live");
   const [flash, setFlash] = useState("");
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [monthOffset, setMonthOffset] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [stats, setStats] = useState<SupervisorStats | null>(null);
+  const [allLeads, setAllLeads] = useState<Lead[]>([]);
+  const [cdr, setCdr] = useState<CdrMonth | null>(null);
+
+  const months = [2, 1, 0].map((o) => monthKeyOf(o));
+  const activeMonth = monthKeyOf(monthOffset);
+
+  function refreshLive() {
+    getSupervisorStats().then(setStats);
+    getAllLeads().then(setAllLeads);
+  }
+
+  useEffect(() => {
+    if (user) refreshLive();
+  }, [user?.employeeId]);
+
+  useEffect(() => {
+    if (user) getCdrMonth(activeMonth.key).then(setCdr);
+  }, [user?.employeeId, activeMonth.key]);
+
   if (!user) return null;
   const currentUser = user;
   const initials = currentUser.name.split(" ").map((w) => w[0]).join("").slice(0, 2);
 
-  const queueStats = getQueueStats();
-  const dayStats = getTodayStatsByAgent();
-  const agents = listAccounts().filter((a) => a.role === "agent");
-  const pastTarget = getLeadsPastTarget(TARGET_MIN).filter((l) => !dismissed.includes("target:" + l.id));
-  const overdueCallbacks = getOverdueCallbacks().filter((l) => !dismissed.includes("cb:" + l.id));
-  const escalated = getEscalatedLeads();
+  const queueStats = stats?.queue ?? { waiting: 0, oldestWaitMin: 0, workedToday: 0, outcomesToday: 0, bookedToday: 0 };
+  const dayStats = stats?.dayStatsByAgent ?? [];
+  const agents = accounts.filter((a) => a.role === "agent");
+  const pastTarget = (stats?.pastTarget ?? []).filter((l) => !dismissed.includes("target:" + l.id));
+  const overdueCallbacks = (stats?.overdueCallbacks ?? []).filter((l) => !dismissed.includes("cb:" + l.id));
+  const escalated = stats?.escalated ?? [];
 
-  const openLeads = getAllLeads().filter((l) => l.status === "waiting" || l.status === "trying");
+  const openLeads = allLeads.filter((l) => l.status === "waiting" || l.status === "trying");
   const leadTypeBreakdown = LEAD_TYPES.map((t) => ({
     ...t,
     count: openLeads.filter((l) => l.leadType === t.code).length,
@@ -83,64 +101,19 @@ export function Supervisor() {
     .sort((a, b) => b.booked - a.booked);
   const topBooked = Math.max(1, ...dayRows.map((r) => r.booked));
 
-  const months = [2, 1, 0].map((o) => monthKeyOf(o));
-  const activeMonth = monthKeyOf(monthOffset);
-  const cdrMonths = listCdrMonths();
-  const cdr = cdrMonths[activeMonth.key];
-
-  const monthReport = useMemo(() => {
-    if (!cdr) return null;
-    const byExt = new Map<string, CdrRow[]>();
-    for (const row of cdr.rows) {
-      if (!byExt.has(row.extension)) byExt.set(row.extension, []);
-      byExt.get(row.extension)!.push(row);
-    }
-    const [y, m] = activeMonth.key.split("-").map(Number);
-    const perAgent = agents.map((a) => {
-      const rows = a.callingNumber ? (byExt.get(a.callingNumber) ?? []) : [];
-      const dials = rows.length;
-      const connectedRows = rows.filter((r) => r.connected);
-      const connected = connectedRows.length;
-      const talkSec = connectedRows.reduce((n, r) => n + r.durationSec, 0);
-      const loggedConnected = getAllLeads().reduce((n, lead) => {
-        return (
-          n +
-          lead.history.filter((h) => {
-            const d = new Date(h.whenISO);
-            return h.agentId === a.employeeId && h.l1 === "connected" && d.getFullYear() === y && d.getMonth() === m - 1;
-          }).length
-        );
-      }, 0);
-      const bookedCount = getAllLeads().reduce((n, lead) => {
-        return (
-          n +
-          lead.history.filter((h) => {
-            const d = new Date(h.whenISO);
-            return h.agentId === a.employeeId && (h.l2 === "appointment_booked" || h.l2 === "appointment_purchased") && d.getFullYear() === y && d.getMonth() === m - 1;
-          }).length
-        );
-      }, 0);
-      return {
-        name: a.name,
-        id: a.employeeId,
-        dials,
-        connected,
-        rate: dials ? Math.round((connected / dials) * 100) : 0,
-        talkSec,
-        booked: bookedCount,
-        missing: Math.max(0, connected - loggedConnected),
-      };
-    });
-    const totalDials = perAgent.reduce((n, r) => n + r.dials, 0);
-    const totalConnected = perAgent.reduce((n, r) => n + r.connected, 0);
-    const totalTalk = perAgent.reduce((n, r) => n + r.talkSec, 0);
-    const totalBooked = perAgent.reduce((n, r) => n + r.booked, 0);
-    const totalMissing = perAgent.reduce((n, r) => n + r.missing, 0);
-    return { perAgent: perAgent.sort((a, b) => b.booked - a.booked), totalDials, totalConnected, totalTalk, totalBooked, totalMissing };
-  }, [cdr, activeMonth.key, agents]);
+  const monthReport = cdr
+    ? {
+        perAgent: cdr.perAgent,
+        totalDials: cdr.perAgent.reduce((n, r) => n + r.dials, 0),
+        totalConnected: cdr.perAgent.reduce((n, r) => n + r.connected, 0),
+        totalTalk: cdr.perAgent.reduce((n, r) => n + r.talkSec, 0),
+        totalBooked: cdr.perAgent.reduce((n, r) => n + r.booked, 0),
+        totalMissing: cdr.perAgent.reduce((n, r) => n + r.missing, 0),
+      }
+    : null;
 
   function handleFile(file: File) {
-    file.text().then((text) => {
+    file.text().then(async (text) => {
       const rows = parseCdrCsv(text);
       if (!rows.length) {
         setFlash("Couldn't read any rows from that file — check the columns match: extension, number dialled, start time, duration (sec), connected.");
@@ -153,27 +126,23 @@ export function Supervisor() {
         setFlash("File failed the integrity check — the record count doesn't match the sum of per-extension dials.");
         return;
       }
-      saveCdrMonth(activeMonth.key, {
-        fileName: file.name,
-        uploadedAt: new Date().toLocaleString(),
-        uploadedBy: `${currentUser.employeeId} ${currentUser.name}`,
-        monthKey: activeMonth.key,
-        rows,
-      });
+      await saveCdrMonth(activeMonth.key, file.name, `${currentUser.employeeId} ${currentUser.name}`, rows);
+      const fresh = await getCdrMonth(activeMonth.key);
+      setCdr(fresh);
       setFlash(`${rows.length.toLocaleString()} call records loaded for ${activeMonth.label}.`);
     });
   }
 
-  const queueOnlyThisMonth = useMemo(() => {
+  const queueOnlyThisMonth = (() => {
     const [y, m] = activeMonth.key.split("-").map(Number);
-    const leads = getAllLeads().filter((l) => {
+    const leads = allLeads.filter((l) => {
       const d = new Date(l.createdAt);
       return d.getFullYear() === y && d.getMonth() === m - 1;
     });
     const outcomes = leads.reduce((n, l) => n + l.history.length, 0);
     const booked = leads.filter((l) => l.status === "booked").length;
     return { received: leads.length, outcomes, booked };
-  }, [activeMonth.key]);
+  })();
 
   return (
     <div className={styles.page}>
@@ -288,7 +257,7 @@ export function Supervisor() {
                     <div className={styles.alertTop}>
                       <span className={styles.alertDot} style={{ background: "var(--danger)" }} />
                       <span className={styles.alertTitle}>{l.name}</span>
-                      <span className={styles.alertAge}>{ageLabel(Date.now() - Date.parse(l.createdAt))}</span>
+                      <span className={styles.alertAge}>{ageLabel(Date.now() - Date.parse(l.createdAt!))}</span>
                     </div>
                     <div className={styles.alertDetail}>
                       Nobody has called yet · {l.facility}{l.urgent ? " · marked urgent" : ""}
@@ -332,9 +301,10 @@ export function Supervisor() {
                     <button
                       type="button"
                       className={styles.alertBtn}
-                      onClick={() => {
-                        unescalateLead(l.id);
+                      onClick={async () => {
+                        await unescalateLead(l.id);
                         setFlash(`${l.name} returned to the queue.`);
+                        refreshLive();
                       }}
                     >
                       Return to queue
@@ -453,7 +423,7 @@ export function Supervisor() {
                     <div>
                       <div className={styles.fileName}>{cdr.fileName}</div>
                       <div className={styles.fileMeta}>
-                        {cdr.rows.length.toLocaleString()} call records · uploaded {cdr.uploadedAt} by {cdr.uploadedBy}
+                        {monthReport.totalDials.toLocaleString()} call records · uploaded {cdr.uploadedAt} by {cdr.uploadedBy}
                       </div>
                     </div>
                     <button type="button" className={styles.replaceBtn} onClick={() => fileInputRef.current?.click()}>
@@ -524,15 +494,18 @@ export function Supervisor() {
                       <div style={{ width: 90, textAlign: "right" }} className={styles.tableHeadCell}>TALK</div>
                       <div style={{ width: 90, textAlign: "right" }} className={styles.tableHeadCell}>BOOKED</div>
                     </div>
-                    {monthReport.perAgent.map((r) => (
-                      <div key={r.id} className={styles.tableRow}>
-                        <div style={{ flex: "1 1 200px" }} className={styles.tableName}>{r.name}</div>
-                        <div style={{ width: 90 }} className={styles.tableCell}>{r.dials}</div>
-                        <div style={{ width: 90, color: r.rate < 50 ? "var(--danger)" : "var(--ink)" }} className={styles.tableCell}>{r.rate}%</div>
-                        <div style={{ width: 90 }} className={styles.tableCell}>{Math.round(r.talkSec / 60)}m</div>
-                        <div style={{ width: 90, color: "var(--success)" }} className={styles.tableCell}>{r.booked}</div>
-                      </div>
-                    ))}
+                    {monthReport.perAgent.map((r) => {
+                      const rate = r.dials ? Math.round((r.connected / r.dials) * 100) : 0;
+                      return (
+                        <div key={r.id} className={styles.tableRow}>
+                          <div style={{ flex: "1 1 200px" }} className={styles.tableName}>{r.name}</div>
+                          <div style={{ width: 90 }} className={styles.tableCell}>{r.dials}</div>
+                          <div style={{ width: 90, color: rate < 50 ? "var(--danger)" : "var(--ink)" }} className={styles.tableCell}>{rate}%</div>
+                          <div style={{ width: 90 }} className={styles.tableCell}>{Math.round(r.talkSec / 60)}m</div>
+                          <div style={{ width: 90, color: "var(--success)" }} className={styles.tableCell}>{r.booked}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               )

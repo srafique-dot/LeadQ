@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import styles from "../Requester.module.css";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { digitsOf, findLeadByPhone, createLead, mergeIntoLead, serviceLine, statusLabel } from "../../../api/leads";
-import type { Account, LeadType } from "../../../api/types";
+import type { Account, Lead, LeadType } from "../../../api/types";
 
 /** Wraps the Bangla half of a bilingual label so it renders in Hind
  * Siliguri at a size/weight balanced against the English half — at equal
@@ -58,7 +58,20 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const phoneRef = useRef<HTMLInputElement>(null);
 
   const digits = digitsOf(phone);
-  const dup = useMemo(() => (digits.length >= 7 ? (findLeadByPhone(phone) ?? null) : null), [phone, digits.length]);
+  const [dup, setDup] = useState<Lead | null>(null);
+  useEffect(() => {
+    if (digits.length < 7) {
+      setDup(null);
+      return;
+    }
+    let cancelled = false;
+    findLeadByPhone(phone).then((d) => {
+      if (!cancelled) setDup(d ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [phone, digits.length]);
 
   const phoneChecking = digits.length > 0 && digits.length < 7;
   const phoneClear = digits.length >= 7 && !dup;
@@ -91,13 +104,13 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
         ? "Goes to the front of the queue — the next free agent gets it."
         : "Goes to the call centre with a 5 minute call target.";
 
-  function performSave(): string {
+  async function performSave(): Promise<string> {
     if (isMerging && dup) {
-      mergeIntoLead(dup.id);
+      await mergeIntoLead(dup.id);
       onSaved(`Added to ${dup.name} — the agent still sees one lead. Logged against ${currentUser.employeeId}.`);
       return dup.name;
     }
-    const created = createLead(
+    const created = await createLead(
       { name, phone, leadType, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: "" },
       currentUser.employeeId,
       currentUser.name,
@@ -129,15 +142,15 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
     // source, leadType and facility are left as-is — a rapid-entry batch usually shares them.
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (blocked) return;
-    performSave();
+    await performSave();
     onClose();
   }
 
-  function handleSaveAndAddAnother() {
+  async function handleSaveAndAddAnother() {
     if (blocked) return;
-    const savedName = performSave();
+    const savedName = await performSave();
     clearForNextLead();
     setJustSaved(savedName);
     phoneRef.current?.focus();

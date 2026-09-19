@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./Requester.module.css";
 import { useAuth } from "../../context/AuthContext";
 import { listLeadsForOwner, serviceLine } from "../../api/leads";
+import type { Lead } from "../../api/types";
 import { STATUS_STYLE } from "./statusStyles";
 import { AddLeadModal } from "./components/AddLeadModal";
 import { ImportModal } from "./components/ImportModal";
@@ -25,13 +26,17 @@ export function Requester() {
   const [entryOpen, setEntryOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [entryDone, setEntryDone] = useState("");
-  const [leads, setLeads] = useState(() => listLeadsForOwner(user?.employeeId ?? ""));
+  const [leads, setLeads] = useState<Lead[]>([]);
+
+  useEffect(() => {
+    if (user) listLeadsForOwner(user.employeeId).then(setLeads);
+  }, [user?.employeeId]);
 
   if (!user) return null;
   const currentUser = user;
 
   function refreshLeads() {
-    setLeads(listLeadsForOwner(currentUser.employeeId));
+    listLeadsForOwner(currentUser.employeeId).then(setLeads);
   }
 
   const shown =
