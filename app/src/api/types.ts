@@ -30,7 +30,20 @@ export interface Invite {
 
 export type LeadStatus = "waiting" | "trying" | "booked" | "closed";
 
-export type LeadType = "appointment" | "surgery_package" | "health_package" | "international_patient" | "general_inquiry";
+export type LeadType =
+  | "appointment"
+  | "vaccine_query"
+  | "lab_test"
+  | "radiology"
+  | "investigative_procedure"
+  | "surgery_package"
+  | "health_package"
+  | "therapy"
+  | "dialysis"
+  | "ipd"
+  | "day_care"
+  | "international_patient"
+  | "general_inquiry";
 
 export type Level1Code = "connected" | "not_responding" | "busy" | "number_off" | "invalid_number" | "call_rejected";
 export type Level2Code =

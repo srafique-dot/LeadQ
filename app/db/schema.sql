@@ -11,7 +11,11 @@ create type level2_code as enum (
   'appointment_purchased', 'appointment_booked', 'info_given', 'callback_later',
   'ni_price', 'ni_distance', 'ni_elsewhere', 'wrong_person', 'duplicate'
 );
-create type lead_type as enum ('appointment', 'surgery_package', 'health_package', 'international_patient', 'general_inquiry');
+create type lead_type as enum (
+  'appointment', 'vaccine_query', 'lab_test', 'radiology', 'investigative_procedure',
+  'surgery_package', 'health_package', 'therapy', 'dialysis', 'ipd', 'day_care',
+  'international_patient', 'general_inquiry'
+);
 
 create table accounts (
   employee_id text primary key check (employee_id ~ '^[A-Za-z]{2,}_\d{2,6}$'),

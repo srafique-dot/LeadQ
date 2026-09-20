@@ -10,8 +10,16 @@ import type { Lead, LeadStatus, LeadType, NewLeadInput, Level1Code, Level2Code }
 
 export const LEAD_TYPES: { code: LeadType; label: string }[] = [
   { code: "appointment", label: "Doctor appointment" },
+  { code: "vaccine_query", label: "Vaccine query" },
+  { code: "lab_test", label: "Lab tests" },
+  { code: "radiology", label: "Radiology" },
+  { code: "investigative_procedure", label: "Investigative procedure" },
   { code: "surgery_package", label: "Surgery package" },
   { code: "health_package", label: "Health package" },
+  { code: "therapy", label: "Therapies" },
+  { code: "dialysis", label: "Dialysis" },
+  { code: "ipd", label: "IPD admission" },
+  { code: "day_care", label: "Day care" },
   { code: "international_patient", label: "International patient" },
   { code: "general_inquiry", label: "General inquiry" },
 ];

@@ -26,8 +26,16 @@ const SOURCES = [
 ];
 const LEAD_TYPES: { value: LeadType; label: string }[] = [
   { value: "appointment", label: "Doctor appointment / ডাক্তারের অ্যাপয়েন্টমেন্ট" },
+  { value: "vaccine_query", label: "Vaccine query / টিকা সংক্রান্ত জিজ্ঞাসা" },
+  { value: "lab_test", label: "Lab tests / ল্যাব টেস্ট" },
+  { value: "radiology", label: "Radiology / রেডিওলজি" },
+  { value: "investigative_procedure", label: "Investigative procedure / তদন্তমূলক প্রসিডিউর" },
   { value: "surgery_package", label: "Surgery package / সার্জারি প্যাকেজ" },
   { value: "health_package", label: "Health package / স্বাস্থ্য প্যাকেজ" },
+  { value: "therapy", label: "Therapies / থেরাপি" },
+  { value: "dialysis", label: "Dialysis / ডায়ালাইসিস" },
+  { value: "ipd", label: "IPD admission / আইপিডি ভর্তি" },
+  { value: "day_care", label: "Day care / ডে কেয়ার" },
   { value: "international_patient", label: "International patient / আন্তর্জাতিক রোগী" },
   { value: "general_inquiry", label: "General inquiry / সাধারণ জিজ্ঞাসা" },
 ];
