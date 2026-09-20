@@ -95,7 +95,6 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   if (!name.trim()) blockers.push("Write the caller’s name.");
   else if (digits.length < 10) blockers.push("Write the full phone number.");
   else if (dup && !entryMode) blockers.push("This number already exists — choose one of the two options above.");
-  else if (!facility.trim()) blockers.push("Choose which hospital.");
   else if (!doctor.trim() && !dept.trim())
     blockers.push("Write the doctor they asked for, or the department if they did not name one.");
   else if (forOther && !patient.trim()) blockers.push("Write the patient’s name.");
