@@ -47,7 +47,7 @@ function nextRunTime(): string {
 }
 
 export function Agent() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
 
   const [queue, setQueue] = useState<Lead[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -183,6 +183,9 @@ export function Agent() {
           <div style={{ marginLeft: "auto", textAlign: "right", minWidth: 0 }}>
             <div className={styles.agentName}>{currentUser.name}</div>
             <div className={styles.clock}>{pad(hours)}:{pad(clockDate.getMinutes())}</div>
+            <button type="button" className={styles.signOutBtn} onClick={signOut}>
+              Sign out
+            </button>
           </div>
         </div>
 
