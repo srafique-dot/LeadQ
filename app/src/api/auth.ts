@@ -135,7 +135,7 @@ export interface NewAccountInput {
 }
 
 export function isValidEmployeeId(id: string): boolean {
-  return /^[A-Za-z]{2,}_\d{3}$/.test(id.trim());
+  return /^[A-Za-z]{2,}_\d{2,6}$/.test(id.trim());
 }
 
 export function findAccountIn(accounts: Account[], employeeId: string): Account | undefined {

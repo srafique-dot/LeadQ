@@ -14,7 +14,7 @@ create type level2_code as enum (
 create type lead_type as enum ('appointment', 'surgery_package', 'health_package', 'international_patient', 'general_inquiry');
 
 create table accounts (
-  employee_id text primary key check (employee_id ~ '^[A-Za-z]{2,}_\d{3}$'),
+  employee_id text primary key check (employee_id ~ '^[A-Za-z]{2,}_\d{2,6}$'),
   name text not null,
   role role not null,
   password_hash text not null,
