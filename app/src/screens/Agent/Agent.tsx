@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./Agent.module.css";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -8,6 +8,7 @@ import {
   splitMergedLead,
   serviceLine,
   leadTypeLabel,
+  getCohortInstructions,
   LEVEL1,
   LEVEL2,
   QUICK_NOTES,
@@ -15,6 +16,7 @@ import {
   MAX_ATTEMPTS,
 } from "../../api/leads";
 import type { Lead, Level1Code, Level2Code } from "../../api/types";
+import { cohortColor } from "../../lib/cohortColor";
 import { AddLeadModal } from "../Requester/components/AddLeadModal";
 import { SearchModal } from "./components/SearchModal";
 import { EscalateModal } from "./components/EscalateModal";
@@ -69,11 +71,34 @@ export function Agent() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [savedLabel, setSavedLabel] = useState("");
   const [now, setNow] = useState(Date.now());
+  const [cohortNoteOpen, setCohortNoteOpen] = useState(false);
+  const [cohortNoteText, setCohortNoteText] = useState<string | null>(null);
+  const cohortNoteCache = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    setCohortNoteOpen(false);
+  }, [currentId]);
+
+  async function toggleCohortNote(cohort: string) {
+    if (cohortNoteOpen) {
+      setCohortNoteOpen(false);
+      return;
+    }
+    if (cohortNoteCache.current[cohort] !== undefined) {
+      setCohortNoteText(cohortNoteCache.current[cohort]);
+      setCohortNoteOpen(true);
+      return;
+    }
+    const text = await getCohortInstructions(cohort);
+    cohortNoteCache.current[cohort] = text;
+    setCohortNoteText(text);
+    setCohortNoteOpen(true);
+  }
 
   useEffect(() => {
     if (user) refreshQueue();
@@ -231,6 +256,12 @@ export function Agent() {
             >
               <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                 <div className={styles.queueRowName}>
+                  {row.cohort && (
+                    <span
+                      title={row.cohort}
+                      style={{ width: 7, height: 7, borderRadius: "50%", background: cohortColor(row.cohort).fg, flex: "0 0 auto" }}
+                    />
+                  )}
                   <span
                     className={styles.queueRowNameText}
                     style={{ color: lead && row.id === lead.id ? "var(--primary-dark)" : "var(--ink-secondary)" }}
@@ -395,14 +426,46 @@ export function Agent() {
                         {lead.preferredTime ? ` · ${lead.preferredTime}` : ""}
                       </span>
                     )}
-                    {lead.email && <span className={`${styles.chip} ${styles.chipCohort}`}>{lead.email}</span>}
+                    {lead.email && <span className={`${styles.chip} ${styles.chipEmail}`}>{lead.email}</span>}
                     {lead.patientName && (
                       <span className={`${styles.chip} ${styles.chipPatient}`}>
                         Booking is for {lead.patientName} — not the person you are calling
                       </span>
                     )}
-                    {lead.cohort && <span className={`${styles.chip} ${styles.chipCohort}`}>{lead.cohort}</span>}
+                    {lead.cohort && (
+                      <button
+                        type="button"
+                        className={styles.chip}
+                        style={{
+                          background: cohortColor(lead.cohort).bg,
+                          color: cohortColor(lead.cohort).fg,
+                          border: "none",
+                          cursor: "pointer",
+                          font: "inherit",
+                        }}
+                        onClick={() => toggleCohortNote(lead.cohort)}
+                        title="Tap for notes on this batch"
+                      >
+                        {lead.cohort} {cohortNoteOpen ? "▴" : "▾"}
+                      </button>
+                    )}
                   </div>
+                  {cohortNoteOpen && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: "9px 12px",
+                        borderRadius: 7,
+                        background: cohortColor(lead.cohort).bg,
+                        border: `1px solid ${cohortColor(lead.cohort).border}`,
+                        color: cohortColor(lead.cohort).fg,
+                        fontSize: 13.5,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {cohortNoteText || "No notes were left for this batch."}
+                    </div>
+                  )}
                   <div className={styles.serviceLine}>{serviceLine(lead)}</div>
                   {lead.note && <div className={styles.quote}>{lead.note}</div>}
 

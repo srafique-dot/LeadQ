@@ -33,6 +33,7 @@ function parseCsv(text: string): ImportRow[] {
 
 export function ImportModal({ currentUser, onClose, onImported }: ImportModalProps) {
   const [cohort, setCohort] = useState("");
+  const [instructions, setInstructions] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [parseError, setParseError] = useState("");
@@ -51,7 +52,7 @@ export function ImportModal({ currentUser, onClose, onImported }: ImportModalPro
           return;
         }
         setParseError("");
-        const outcome = await importLeads(rows, cohort.trim(), currentUser.employeeId, currentUser.name);
+        const outcome = await importLeads(rows, cohort.trim(), currentUser.employeeId, currentUser.name, instructions.trim());
         setResult(outcome);
         onImported(outcome, cohort.trim());
       })
@@ -90,6 +91,20 @@ export function ImportModal({ currentUser, onClose, onImported }: ImportModalPro
             </button>
           ))}
         </div>
+
+        <label className={styles.field} style={{ marginTop: 14 }}>
+          <span className={styles.fieldLabel}>
+            Instructions for call agents <span className={styles.muted}>— optional</span>
+          </span>
+          <textarea
+            value={instructions}
+            onChange={(e) => setInstructions(e.target.value)}
+            rows={2}
+            placeholder="e.g. Dr. Shelly's patients — offer the executive check-up, mention her by name"
+            className={styles.textarea}
+          />
+          <span className={styles.hint}>Agents can pull this up from the lead card to refresh their memory on this batch.</span>
+        </label>
 
         <div
           className={`${styles.dropZone} ${ready ? styles.active : ""}`}

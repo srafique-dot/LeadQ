@@ -40,6 +40,16 @@ create table invites (
   used_by text references accounts(employee_id)
 );
 
+-- Metadata about an upload batch (e.g. "Dr. Shelly's patient base"),
+-- separate from the leads themselves — one row per cohort, not one per
+-- lead, so instructions can be added/edited without touching every row.
+create table cohorts (
+  name text primary key,
+  instructions text not null default '',
+  created_by text not null references accounts(employee_id),
+  created_at timestamptz not null default now()
+);
+
 create table leads (
   id text primary key default 'L-' || upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6)),
   name text not null,

@@ -83,8 +83,22 @@ export interface ImportResult {
   duplicates: { row: ImportRow; existing: Lead }[];
 }
 
-export function importLeads(rows: ImportRow[], cohort: string, ownerId: string, ownerName: string): Promise<ImportResult> {
-  return postJson("/api/leads?action=import", { rows, cohort, ownerId, ownerName });
+export function importLeads(
+  rows: ImportRow[],
+  cohort: string,
+  ownerId: string,
+  ownerName: string,
+  cohortInstructions = "",
+): Promise<ImportResult> {
+  return postJson("/api/leads?action=import", { rows, cohort, cohortInstructions, ownerId, ownerName });
+}
+
+/** Fetched on demand (not preloaded) — an agent taps the cohort chip when
+ * they want to refresh their memory on the campaign brief. Empty string if
+ * this cohort has no instructions on file. */
+export async function getCohortInstructions(cohort: string): Promise<string> {
+  const json = await getJson<{ instructions: string }>(`/api/cohorts/${encodeURIComponent(cohort)}`);
+  return json.instructions;
 }
 
 export function statusLabel(status: LeadStatus): string {

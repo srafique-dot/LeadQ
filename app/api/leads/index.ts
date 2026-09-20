@@ -33,6 +33,7 @@ interface ImportRow {
 interface ImportBody {
   rows: ImportRow[];
   cohort: string;
+  cohortInstructions?: string;
   ownerId: string;
   ownerName: string;
 }
@@ -69,7 +70,15 @@ export default route({
 
   POST: async (req, res) => {
     if (req.query.action === "import") {
-      const { rows, cohort, ownerId, ownerName } = body<ImportBody>(req);
+      const { rows, cohort, cohortInstructions, ownerId, ownerName } = body<ImportBody>(req);
+      if (cohort.trim()) {
+        await query(
+          `insert into cohorts (name, instructions, created_by)
+           values ($1,$2,$3)
+           on conflict (name) do update set instructions = case when excluded.instructions <> '' then excluded.instructions else cohorts.instructions end`,
+          [cohort.trim(), cohortInstructions?.trim() ?? "", ownerId],
+        );
+      }
       const created: unknown[] = [];
       const duplicates: { row: ImportRow; existing: unknown }[] = [];
       for (const row of rows) {
