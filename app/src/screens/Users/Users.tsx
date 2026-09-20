@@ -9,7 +9,8 @@ import {
   createInvite,
   listInvites,
 } from "../../api/auth";
-import type { Invite, Role } from "../../api/types";
+import { listChannels, createChannel, setChannelActive } from "../../api/channels";
+import type { Channel, Invite, Role } from "../../api/types";
 
 const ROLE_META: Record<Role, { tag: string; label: string; desc: string; bg: string; fg: string }> = {
   requester: { tag: "REQUESTER", label: "Adds leads", desc: "Business development, marketing, front desk. Submits leads and sees their outcome.", bg: "#E7F1F2", fg: "#0A5C64" },
@@ -37,13 +38,30 @@ export function Users() {
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [newChannel, setNewChannel] = useState("");
+
   function refreshInvites() {
     listInvites().then(setInvites);
   }
 
+  function refreshChannels() {
+    listChannels().then(setChannels);
+  }
+
   useEffect(() => {
-    if (user?.role === "superadmin") refreshInvites();
+    if (user?.role === "superadmin") {
+      refreshInvites();
+      refreshChannels();
+    }
   }, [user?.employeeId]);
+
+  async function handleAddChannel() {
+    if (!newChannel.trim() || !user) return;
+    await createChannel(newChannel.trim(), user.employeeId);
+    setNewChannel("");
+    refreshChannels();
+  }
 
   if (!user) return null;
   const currentUser = user;
@@ -274,6 +292,53 @@ export function Users() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {canManage && (
+          <div className={styles.listCard} style={{ marginTop: 16 }}>
+            <div className={styles.listHead}>
+              <span className={styles.listHeadTitle}>Lead sources</span>
+            </div>
+            <div style={{ display: "flex", gap: 9, padding: "14px 20px", borderBottom: "1px solid var(--border-light)" }}>
+              <input
+                value={newChannel}
+                onChange={(e) => setNewChannel(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newChannel.trim()) handleAddChannel();
+                }}
+                placeholder="e.g. Facebook Ads"
+                className={styles.textInput}
+                style={{ maxWidth: 280 }}
+              />
+              <button type="button" className={styles.actionBtn} disabled={!newChannel.trim()} onClick={handleAddChannel}>
+                Add source
+              </button>
+            </div>
+            {channels.map((c) => (
+              <div key={c.name} className={styles.row} style={{ opacity: c.active ? 1 : 0.6 }}>
+                <div className={styles.rowLeft}>
+                  <div className={styles.nameRow}>
+                    <span className={styles.name}>{c.name}</span>
+                    {!c.active && <span className={styles.noAccessTag}>HIDDEN</span>}
+                  </div>
+                </div>
+                <div className={styles.rowActions}>
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    style={c.active ? { color: "var(--danger)", borderColor: "var(--danger-tint-border)" } : { color: "var(--primary-dark)", borderColor: "var(--primary-tint-border)" }}
+                    onClick={async () => {
+                      await setChannelActive(c.name, !c.active);
+                      refreshChannels();
+                    }}
+                  >
+                    {c.active ? "Hide from form" : "Show on form"}
+                  </button>
+                </div>
+              </div>
+            ))}
+            {channels.length === 0 && <div className={styles.emptyRow}>No lead sources yet.</div>}
           </div>
         )}
       </div>

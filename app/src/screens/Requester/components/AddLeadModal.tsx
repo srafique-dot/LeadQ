@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import styles from "../Requester.module.css";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { digitsOf, findLeadByPhone, createLead, mergeIntoLead, serviceLine, statusLabel } from "../../../api/leads";
+import { listChannels } from "../../../api/channels";
 import type { Account, Lead, LeadType } from "../../../api/types";
 
 /** Wraps the Bangla half of a bilingual label so it renders in Hind
@@ -19,11 +20,9 @@ interface AddLeadModalProps {
 
 const HOSPITALS = ["UMCH Main", "Medix Uttara", "MA Rashid Clinic"];
 const TIME_SLOTS = ["Morning", "Afternoon", "Evening"];
-const SOURCES = [
-  { value: "Manual entry", label: "Phone-in / walk-in / ফোন বা সরাসরি" },
-  { value: "Website LP", label: "Website enquiry / ওয়েবসাইট" },
-  { value: "Door2Door Campaign", label: "Door-to-door campaign / ডোর টু ডোর ক্যাম্পেইন" },
-];
+/** Shown until the live, superadmin-managed list loads — keeps the form
+ * usable on a slow connection instead of an empty dropdown. */
+const FALLBACK_SOURCES = ["Manual entry", "Website LP", "Door2Door Campaign"];
 const LEAD_TYPES: { value: LeadType; label: string }[] = [
   { value: "appointment", label: "Doctor appointment / ডাক্তারের অ্যাপয়েন্টমেন্ট" },
   { value: "vaccine_query", label: "Vaccine query / টিকা সংক্রান্ত জিজ্ঞাসা" },
@@ -132,7 +131,8 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [wantDate, setWantDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
   const [email, setEmail] = useState("");
-  const [source, setSource] = useState(SOURCES[0].value);
+  const [sources, setSources] = useState<string[]>(FALLBACK_SOURCES);
+  const [source, setSource] = useState(FALLBACK_SOURCES[0]);
   const [leadType, setLeadType] = useState<LeadType>(LEAD_TYPES[0].value);
   const [urgent, setUrgent] = useState(false);
   const [urgentReason, setUrgentReason] = useState("");
@@ -143,6 +143,17 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const phoneRef = useRef<HTMLInputElement>(null);
 
   const svc = SERVICE_FIELDS[leadType];
+
+  useEffect(() => {
+    listChannels().then((channels) => {
+      const active = channels.filter((c) => c.active).map((c) => c.name);
+      if (active.length) {
+        setSources(active);
+        setSource((s) => (active.includes(s) ? s : active[0]));
+      }
+    });
+  }, []);
+
   const digits = digitsOf(phone);
   const [dup, setDup] = useState<Lead | null>(null);
   useEffect(() => {
@@ -285,9 +296,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
                 How did this lead come in? / <Bn>এই লিড কীভাবে এসেছে</Bn>
               </span>
               <select value={source} onChange={(e) => setSource(e.target.value)} className={styles.textInput}>
-                {SOURCES.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
+                {sources.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>

@@ -68,6 +68,15 @@ export interface DispositionRecord {
   note: string;
 }
 
+/** A superadmin-managed "how did this lead come in" option — free text,
+ * not an enum, so adding one is an app action, not a schema change. */
+export interface Channel {
+  name: string;
+  active: boolean;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface MergedEntry {
   channel: string;
   when: string;

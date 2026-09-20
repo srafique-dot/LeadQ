@@ -54,6 +54,19 @@ create table cohorts (
   created_at timestamptz not null default now()
 );
 
+-- Superadmin-managed list of "how did this lead come in" values. Free text
+-- (not an enum) so a superadmin can add one without a schema change.
+create table channels (
+  name text primary key,
+  active boolean not null default true,
+  created_by text not null references accounts(employee_id),
+  created_at timestamptz not null default now()
+);
+insert into channels (name, active, created_by) values
+  ('Manual entry', true, (select employee_id from accounts order by created_at limit 1)),
+  ('Website LP', true, (select employee_id from accounts order by created_at limit 1)),
+  ('Door2Door Campaign', true, (select employee_id from accounts order by created_at limit 1));
+
 create table leads (
   id text primary key default 'L-' || upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6)),
   name text not null,
