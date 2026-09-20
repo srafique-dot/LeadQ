@@ -40,6 +40,83 @@ const LEAD_TYPES: { value: LeadType; label: string }[] = [
   { value: "general_inquiry", label: "General inquiry / সাধারণ জিজ্ঞাসা" },
 ];
 
+/** The "which doctor / department" pair only makes sense as-is for an
+ * appointment. Every other lead type asks for the specific thing instead
+ * (which test, which vaccine, which package…) and treats a named doctor as
+ * optional extra context, not the primary field. orPattern=true keeps the
+ * original either/or requirement (appointment + international, where a
+ * named doctor and a department are both meaningful on their own). */
+const SERVICE_FIELDS: Record<
+  LeadType,
+  { primaryLabel: string; primaryBn: string; primaryPlaceholder: string; secondaryLabel: string; secondaryBn: string; secondaryPlaceholder: string; orPattern: boolean }
+> = {
+  appointment: {
+    primaryLabel: "Which doctor did they ask for", primaryBn: "কোন ডাক্তার চেয়েছেন", primaryPlaceholder: "e.g. Prof. A. Q. M. Mohsen",
+    secondaryLabel: "Department", secondaryBn: "বিভাগ", secondaryPlaceholder: "e.g. Gynaecology",
+    orPattern: true,
+  },
+  vaccine_query: {
+    primaryLabel: "Which vaccine", primaryBn: "কোন টিকা", primaryPlaceholder: "e.g. Hepatitis B, HPV, Flu shot",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  lab_test: {
+    primaryLabel: "Which test(s)", primaryBn: "কোন টেস্ট", primaryPlaceholder: "e.g. CBC, Lipid profile, HbA1c",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  radiology: {
+    primaryLabel: "Which scan", primaryBn: "কোন স্ক্যান", primaryPlaceholder: "e.g. Chest X-ray, CT scan, USG",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  investigative_procedure: {
+    primaryLabel: "Which procedure", primaryBn: "কোন পরীক্ষা/পদ্ধতি", primaryPlaceholder: "e.g. Endoscopy, Biopsy",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  surgery_package: {
+    primaryLabel: "Which surgery", primaryBn: "কোন সার্জারি", primaryPlaceholder: "e.g. Cataract, Appendectomy",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  health_package: {
+    primaryLabel: "Which package", primaryBn: "কোন প্যাকেজ", primaryPlaceholder: "e.g. Executive health check-up",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  therapy: {
+    primaryLabel: "Which therapy", primaryBn: "কোন থেরাপি", primaryPlaceholder: "e.g. Physiotherapy, Speech therapy",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  dialysis: {
+    primaryLabel: "What they need", primaryBn: "কী প্রয়োজন", primaryPlaceholder: "e.g. Twice-weekly haemodialysis",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  ipd: {
+    primaryLabel: "Reason for admission", primaryBn: "ভর্তির কারণ", primaryPlaceholder: "e.g. Fever, observation",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  day_care: {
+    primaryLabel: "Which procedure", primaryBn: "কোন পদ্ধতি", primaryPlaceholder: "e.g. Minor surgery, endoscopy",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  international_patient: {
+    primaryLabel: "Which doctor or service", primaryBn: "কোন ডাক্তার বা সেবা", primaryPlaceholder: "e.g. Cardiology consultation",
+    secondaryLabel: "Department", secondaryBn: "বিভাগ", secondaryPlaceholder: "e.g. Cardiology",
+    orPattern: true,
+  },
+  general_inquiry: {
+    primaryLabel: "What they're asking about", primaryBn: "কী জানতে চেয়েছেন", primaryPlaceholder: "e.g. Visiting hours, price list",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+};
+
 type EntryMode = "merge" | "separate" | null;
 
 export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProps) {
@@ -65,6 +142,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [justSaved, setJustSaved] = useState("");
   const phoneRef = useRef<HTMLInputElement>(null);
 
+  const svc = SERVICE_FIELDS[leadType];
   const digits = digitsOf(phone);
   const [dup, setDup] = useState<Lead | null>(null);
   useEffect(() => {
@@ -95,8 +173,8 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   if (!name.trim()) blockers.push("Write the caller’s name.");
   else if (digits.length < 10) blockers.push("Write the full phone number.");
   else if (dup && !entryMode) blockers.push("This number already exists — choose one of the two options above.");
-  else if (!doctor.trim() && !dept.trim())
-    blockers.push("Write the doctor they asked for, or the department if they did not name one.");
+  else if (svc.orPattern ? !doctor.trim() && !dept.trim() : !doctor.trim())
+    blockers.push(svc.orPattern ? "Write the doctor they asked for, or the department if they did not name one." : `Write ${svc.primaryLabel.toLowerCase()}.`);
   else if (forOther && !patient.trim()) blockers.push("Write the patient’s name.");
   else if (urgent && !urgentReason.trim()) blockers.push("Say why this one jumps the queue.");
 
@@ -347,23 +425,30 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
           <div className={styles.twoCol}>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
-                Which doctor did they ask for / <Bn>কোন ডাক্তার চেয়েছেন</Bn>
+                {svc.primaryLabel} / <Bn>{svc.primaryBn}</Bn>
               </span>
               <input
                 value={doctor}
                 onChange={(e) => setDoctor(e.target.value)}
-                placeholder="e.g. Prof. A. Q. M. Mohsen"
+                placeholder={svc.primaryPlaceholder}
                 className={styles.textInput}
               />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
-                Department / <Bn>বিভাগ</Bn> <span className={styles.muted}>— if no doctor named / <Bn>ডাক্তারের নাম না থাকলে</Bn></span>
+                {svc.secondaryLabel} / <Bn>{svc.secondaryBn}</Bn>{" "}
+                <span className={styles.muted}>
+                  {svc.orPattern ? (
+                    <>— if no doctor named / <Bn>ডাক্তারের নাম না থাকলে</Bn></>
+                  ) : (
+                    <>— optional / <Bn>ঐচ্ছিক</Bn></>
+                  )}
+                </span>
               </span>
               <input
                 value={dept}
                 onChange={(e) => setDept(e.target.value)}
-                placeholder="e.g. Gynaecology"
+                placeholder={svc.secondaryPlaceholder}
                 className={styles.textInput}
               />
             </label>
