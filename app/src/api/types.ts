@@ -3,6 +3,7 @@ export type Role = "requester" | "agent" | "admin" | "superadmin";
 export interface Account {
   employeeId: string;
   name: string;
+  email: string;
   role: Role;
   roleLabel: string;
   mustChangePassword: boolean;
@@ -11,6 +12,20 @@ export interface Account {
   callingNumber: string;
   active: boolean;
   facility: string;
+}
+
+/** A superadmin-issued invite: role/facility/calling number are fixed by
+ * whoever creates it, the invitee only supplies their own identity. */
+export interface Invite {
+  token: string;
+  role: Role;
+  roleLabel: string;
+  facility: string;
+  callingNumber: string;
+  createdBy: string;
+  createdAt: string;
+  usedAt: string;
+  usedByName: string;
 }
 
 export type LeadStatus = "waiting" | "trying" | "booked" | "closed";

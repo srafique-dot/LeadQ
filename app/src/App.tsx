@@ -1,5 +1,6 @@
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { SignIn } from "./screens/SignIn/SignIn";
+import { ClaimInvite } from "./screens/ClaimInvite/ClaimInvite";
 import { Requester } from "./screens/Requester/Requester";
 import { Agent } from "./screens/Agent/Agent";
 import { Supervisor } from "./screens/Supervisor/Supervisor";
@@ -16,9 +17,11 @@ function Routed() {
 }
 
 export function App() {
+  const inviteToken = new URLSearchParams(window.location.search).get("invite");
+
   return (
     <AuthProvider>
-      <Routed />
+      {inviteToken ? <ClaimInvite token={inviteToken} /> : <Routed />}
     </AuthProvider>
   );
 }

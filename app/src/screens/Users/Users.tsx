@@ -1,16 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import styles from "./Users.module.css";
 import { useAuth } from "../../context/AuthContext";
 import {
-  isValidEmployeeId,
   findAccountIn,
-  createAccount,
   resetPassword,
   setAccountActive,
   renameAccount,
-  generatePassword,
+  createInvite,
+  listInvites,
 } from "../../api/auth";
-import type { Role } from "../../api/types";
+import type { Invite, Role } from "../../api/types";
 
 const ROLE_META: Record<Role, { tag: string; label: string; desc: string; bg: string; fg: string }> = {
   requester: { tag: "REQUESTER", label: "Adds leads", desc: "Business development, marketing, front desk. Submits leads and sees their outcome.", bg: "#E7F1F2", fg: "#0A5C64" },
@@ -28,13 +27,12 @@ export function Users() {
   const [filter, setFilter] = useState<Filter>("all");
   const [flash, setFlash] = useState("");
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [nfId, setNfId] = useState("");
-  const [nfName, setNfName] = useState("");
-  const [nfRole, setNfRole] = useState<Role | "">("");
-  const [nfFacility, setNfFacility] = useState("");
-  const [nfExt, setNfExt] = useState("");
-  const [nfPassword, setNfPassword] = useState("");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [niRole, setNiRole] = useState<Role | "">("");
+  const [niFacility, setNiFacility] = useState("");
+  const [niExt, setNiExt] = useState("");
+  const [createdInvite, setCreatedInvite] = useState<Invite | null>(null);
+  const [invites, setInvites] = useState<Invite[]>([]);
 
   const [resetTarget, setResetTarget] = useState<string | null>(null);
   const [resetStage, setResetStage] = useState<"confirm" | "done">("confirm");
@@ -43,21 +41,23 @@ export function Users() {
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
 
+  function refreshInvites() {
+    listInvites().then(setInvites);
+  }
+
+  useEffect(() => {
+    if (user?.role === "superadmin") refreshInvites();
+  }, [user?.employeeId]);
+
   if (!user) return null;
   const currentUser = user;
   const canManage = currentUser.role === "superadmin";
   const initials = currentUser.name.split(" ").map((w) => w[0]).join("").slice(0, 2);
 
-  const idTaken = nfId.trim() ? !!findAccountIn(accounts, nfId) : false;
-  const idOk = isValidEmployeeId(nfId);
   const blockers: string[] = [];
-  if (!nfId.trim()) blockers.push("Write their employee ID.");
-  else if (!idOk) blockers.push("Employee ID looks like TANVIR_014 — their name, an underscore, then 2–6 digits.");
-  else if (idTaken) blockers.push("That employee ID already has an account.");
-  else if (!nfName.trim()) blockers.push("Write their full name.");
-  else if (!nfRole) blockers.push("Pick what they do.");
-  else if (!nfFacility) blockers.push("Choose which hospital.");
-  else if (nfRole === "agent" && !nfExt.trim()) blockers.push("Agents need the number they call from — the monthly call file is matched on it.");
+  if (!niRole) blockers.push("Pick what they do.");
+  else if (!niFacility) blockers.push("Choose which hospital.");
+  else if (niRole === "agent" && !niExt.trim()) blockers.push("Agents need the number they call from — the monthly call file is matched on it.");
 
   const shown = accounts.filter((a) => {
     if (filter === "all") return true;
@@ -69,26 +69,23 @@ export function Users() {
   const resetAccount = resetTarget ? findAccountIn(accounts, resetTarget) : null;
   const renameTargetAccount = renameTarget ? findAccountIn(accounts, renameTarget) : null;
 
-  function openAdd() {
-    setNfId("");
-    setNfName("");
-    setNfRole("");
-    setNfFacility("");
-    setNfExt("");
-    setNfPassword(generatePassword());
+  function openInvite() {
+    setNiRole("");
+    setNiFacility("");
+    setNiExt("");
+    setCreatedInvite(null);
     setFlash("");
-    setAddOpen(true);
+    setInviteOpen(true);
   }
 
-  async function handleCreate() {
-    if (blockers.length || !nfRole) return;
+  async function handleCreateInvite() {
+    if (blockers.length || !niRole) return;
     try {
-      const { account, password } = await createAccount({ employeeId: nfId, name: nfName, role: nfRole, facility: nfFacility, callingNumber: nfExt });
-      setAddOpen(false);
-      setFlash(`${account.name} (${account.employeeId}) can sign in — password ${password}. Write it down now.`);
-      await refreshAccounts();
+      const invite = await createInvite({ role: niRole, facility: niFacility, callingNumber: niExt, createdBy: currentUser.employeeId });
+      setCreatedInvite(invite);
+      refreshInvites();
     } catch (err) {
-      setFlash(err instanceof Error ? err.message : "Could not create the account.");
+      setFlash(err instanceof Error ? err.message : "Could not create the invite.");
     }
   }
 
@@ -150,8 +147,8 @@ export function Users() {
             </div>
           </div>
           {canManage && (
-            <button type="button" className={styles.addBtn} onClick={openAdd}>
-              Add a person
+            <button type="button" className={styles.addBtn} onClick={openInvite}>
+              Invite a person
             </button>
           )}
         </div>
@@ -254,114 +251,154 @@ export function Users() {
         {!canManage && (
           <div className={styles.readOnlyNote}>You can see the list but not change it. Passwords, roles and access are handled by a superadmin.</div>
         )}
-        <div className={styles.footNote}>Passwords are generated here and shown once. Nobody — including a superadmin — can read an existing password back.</div>
+        <div className={styles.footNote}>Everyone sets their own password when they claim their invite. Nobody — including a superadmin — can read an existing password back.</div>
+
+        {canManage && invites.length > 0 && (
+          <div className={styles.listCard} style={{ marginTop: 16 }}>
+            <div className={styles.listHead}>
+              <span className={styles.listHeadTitle}>Invites</span>
+            </div>
+            {invites.map((i) => (
+              <div key={i.token} className={styles.row}>
+                <div className={styles.rowLeft}>
+                  <div className={styles.nameRow}>
+                    <span className={styles.name}>{i.roleLabel}</span>
+                    {!i.usedAt && <span className={styles.roleTag} style={{ background: "#FDF9EE", color: "#7A4E06" }}>PENDING</span>}
+                  </div>
+                  <div className={styles.metaText}>
+                    {i.facility || "Any hospital"} · {i.usedAt ? `Claimed by ${i.usedByName}` : "Not claimed yet"}
+                  </div>
+                </div>
+                {!i.usedAt && (
+                  <div className={styles.rowActions}>
+                    <button
+                      type="button"
+                      className={styles.actionBtn}
+                      onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/?invite=${i.token}`)}
+                    >
+                      Copy link
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      {addOpen && (
+      {inviteOpen && (
         <div className={styles.overlay}>
           <div className={styles.modal}>
             <div className={styles.modalHead}>
               <div>
-                <div className={styles.modalTitle}>Add a person</div>
-                <div className={styles.modalSub}>They sign in with the employee ID and the password below.</div>
-              </div>
-              <button type="button" className={styles.modalClose} onClick={() => setAddOpen(false)}>×</button>
-            </div>
-            <div className={styles.modalBody}>
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Employee ID</span>
-                <input
-                  value={nfId}
-                  onChange={(e) => setNfId(e.target.value)}
-                  placeholder="TANVIR_014"
-                  className={styles.idInput}
-                  style={{ borderWidth: 1.5, borderStyle: "solid", borderColor: !nfId.trim() ? "var(--border-input)" : idOk && !idTaken ? "var(--success-tint-border)" : "#E0C98F" }}
-                />
-                <span className={styles.hint} style={{ color: !nfId.trim() ? "var(--ink-faint)" : idOk && !idTaken ? "var(--success-dark)" : "var(--warning-dark)" }}>
-                  {!nfId.trim() ? "This is what they type to sign in." : idTaken ? "Already taken — check the roster." : idOk ? "Available." : "Their name, an underscore, then 2–6 digits."}
-                </span>
-              </label>
-
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Full name</span>
-                <input value={nfName} onChange={(e) => setNfName(e.target.value)} placeholder="As it appears on the roster" className={styles.textInput} />
-              </label>
-
-              <div>
-                <span className={styles.fieldLabel}>What they do</span>
-                <div className={styles.roleGrid}>
-                  {(Object.keys(ROLE_META) as Role[]).map((k) => {
-                    const on = nfRole === k;
-                    const r = ROLE_META[k];
-                    return (
-                      <button
-                        key={k}
-                        type="button"
-                        className={styles.roleCard}
-                        style={on ? { background: "var(--primary-tint)", borderColor: "var(--primary)" } : undefined}
-                        onClick={() => setNfRole(k)}
-                      >
-                        <div className={styles.roleCardTitle} style={{ color: on ? "var(--primary-dark)" : "var(--ink)" }}>{r.label}</div>
-                        <div className={styles.roleCardDesc} style={{ color: on ? "#3F6A70" : "var(--ink-faint)" }}>{r.desc}</div>
-                      </button>
-                    );
-                  })}
+                <div className={styles.modalTitle}>Invite a person</div>
+                <div className={styles.modalSub}>
+                  {createdInvite
+                    ? "Share this link with them — they'll fill in their own name, ID and password."
+                    : "Pick what they can do. They'll fill in their own name, employee ID and password when they open the link."}
                 </div>
               </div>
+              <button type="button" className={styles.modalClose} onClick={() => setInviteOpen(false)}>×</button>
+            </div>
 
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>Which hospital</span>
-                <select value={nfFacility} onChange={(e) => setNfFacility(e.target.value)} className={styles.textInput} style={{ maxWidth: 300 }}>
-                  <option value="">Choose one…</option>
-                  {HOSPITALS.map((h) => (
-                    <option key={h} value={h}>{h}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className={styles.field}>
-                <span className={styles.fieldLabel}>
-                  The number they call from <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}>— {nfRole === "agent" ? "required for agents" : "optional"}</span>
-                </span>
-                <input
-                  value={nfExt}
-                  onChange={(e) => setNfExt(e.target.value)}
-                  placeholder={nfRole === "agent" ? "2107" : "extension or mobile"}
-                  className={styles.textInput}
-                  style={{ maxWidth: 260, fontFamily: "var(--font-mono)", fontSize: 16 }}
-                />
-                <span className={styles.hint} style={{ color: "var(--ink-faint)" }}>
-                  {nfRole === "agent"
-                    ? "Desk extension, or their mobile if they dial from their own phone. The monthly call file has no names in it — this is what ties a call to this person."
-                    : "Only needed for people who place calls."}
-                </span>
-              </label>
-
-              <div className={styles.pwBox}>
-                <div className={styles.pwBoxTitle}>First password</div>
-                <div className={styles.pwRow}>
-                  <span className={styles.pwValue}>{nfPassword}</span>
-                  <button type="button" className={styles.regenBtn} onClick={() => setNfPassword(generatePassword())}>
-                    Generate another
+            {createdInvite ? (
+              <>
+                <div className={styles.modalBody}>
+                  <div className={styles.pwBox}>
+                    <div className={styles.pwBoxTitle}>Invite link</div>
+                    <div className={styles.pwRow}>
+                      <span className={styles.pwValue} style={{ fontSize: 13, wordBreak: "break-all" }}>
+                        {window.location.origin}/?invite={createdInvite.token}
+                      </span>
+                      <button
+                        type="button"
+                        className={styles.regenBtn}
+                        onClick={() => navigator.clipboard?.writeText(`${window.location.origin}/?invite=${createdInvite.token}`)}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className={styles.pwNote}>
+                      {createdInvite.roleLabel}
+                      {createdInvite.facility ? ` · ${createdInvite.facility}` : ""}. Works once — send it to one person.
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.modalFooter}>
+                  <button type="button" className={styles.saveBtn} onClick={() => setInviteOpen(false)}>
+                    Done
                   </button>
                 </div>
-                <div className={styles.pwNote}>Give it to them directly. They are asked to change it the first time they sign in, and this screen will not show it again.</div>
-              </div>
-            </div>
-            <div className={styles.modalFooter}>
-              <button
-                type="button"
-                disabled={blockers.length > 0}
-                className={styles.saveBtn}
-                style={{ background: blockers.length ? "var(--disabled-btn)" : "var(--primary)", opacity: blockers.length ? 0.75 : 1 }}
-                onClick={handleCreate}
-              >
-                Create account
-              </button>
-              <div className={styles.footerStatus} style={{ color: blockers.length ? "var(--danger)" : "var(--ink-faint)" }}>
-                {blockers.length ? blockers[0] : "They can sign in straight away with this password."}
-              </div>
-            </div>
+              </>
+            ) : (
+              <>
+                <div className={styles.modalBody}>
+                  <div>
+                    <span className={styles.fieldLabel}>What they do</span>
+                    <div className={styles.roleGrid}>
+                      {(Object.keys(ROLE_META) as Role[]).map((k) => {
+                        const on = niRole === k;
+                        const r = ROLE_META[k];
+                        return (
+                          <button
+                            key={k}
+                            type="button"
+                            className={styles.roleCard}
+                            style={on ? { background: "var(--primary-tint)", borderColor: "var(--primary)" } : undefined}
+                            onClick={() => setNiRole(k)}
+                          >
+                            <div className={styles.roleCardTitle} style={{ color: on ? "var(--primary-dark)" : "var(--ink)" }}>{r.label}</div>
+                            <div className={styles.roleCardDesc} style={{ color: on ? "#3F6A70" : "var(--ink-faint)" }}>{r.desc}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>Which hospital</span>
+                    <select value={niFacility} onChange={(e) => setNiFacility(e.target.value)} className={styles.textInput} style={{ maxWidth: 300 }}>
+                      <option value="">Choose one…</option>
+                      {HOSPITALS.map((h) => (
+                        <option key={h} value={h}>{h}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className={styles.field}>
+                    <span className={styles.fieldLabel}>
+                      The number they call from <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}>— {niRole === "agent" ? "required for agents" : "optional"}</span>
+                    </span>
+                    <input
+                      value={niExt}
+                      onChange={(e) => setNiExt(e.target.value)}
+                      placeholder={niRole === "agent" ? "2107" : "extension or mobile"}
+                      className={styles.textInput}
+                      style={{ maxWidth: 260, fontFamily: "var(--font-mono)", fontSize: 16 }}
+                    />
+                    <span className={styles.hint} style={{ color: "var(--ink-faint)" }}>
+                      {niRole === "agent"
+                        ? "Desk extension, or their mobile if they dial from their own phone. The monthly call file has no names in it — this is what ties a call to this person."
+                        : "Only needed for people who place calls."}
+                    </span>
+                  </label>
+                </div>
+                <div className={styles.modalFooter}>
+                  <button
+                    type="button"
+                    disabled={blockers.length > 0}
+                    className={styles.saveBtn}
+                    style={{ background: blockers.length ? "var(--disabled-btn)" : "var(--primary)", opacity: blockers.length ? 0.75 : 1 }}
+                    onClick={handleCreateInvite}
+                  >
+                    Create invite link
+                  </button>
+                  <div className={styles.footerStatus} style={{ color: blockers.length ? "var(--danger)" : "var(--ink-faint)" }}>
+                    {blockers.length ? blockers[0] : "You'll get a link to share with them."}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

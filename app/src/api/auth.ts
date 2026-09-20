@@ -1,4 +1,4 @@
-import type { Account, Role } from "./types";
+import type { Account, Invite, Role } from "./types";
 
 /**
  * Real backend calls. Every function here mirrors the shape the mock had in
@@ -126,14 +126,6 @@ export function generatePassword(len = 8): string {
   return out.slice(0, 4) + "-" + out.slice(4);
 }
 
-export interface NewAccountInput {
-  employeeId: string;
-  name: string;
-  role: Role;
-  facility: string;
-  callingNumber: string;
-}
-
 export function isValidEmployeeId(id: string): boolean {
   return /^[A-Za-z]{2,}_\d{2,6}$/.test(id.trim());
 }
@@ -149,15 +141,81 @@ export async function listAccounts(): Promise<Account[]> {
   return res.json();
 }
 
-export async function createAccount(input: NewAccountInput): Promise<{ account: Account; password: string }> {
-  const res = await fetch("/api/accounts", {
+export interface NewInviteInput {
+  role: Role;
+  facility: string;
+  callingNumber: string;
+  createdBy: string;
+}
+
+/** Superadmin fixes role/facility/calling-number up front; the invitee fills
+ * in their own name, EID, email and password when they open the link. */
+export async function createInvite(input: NewInviteInput): Promise<Invite> {
+  const res = await fetch("/api/invites", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
   const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? "Could not create account");
+  if (!res.ok) throw new Error(json.error ?? "Could not create invite");
   return json;
+}
+
+export async function listInvites(): Promise<Invite[]> {
+  const res = await fetch("/api/invites");
+  if (!res.ok) throw new Error("Could not load invites");
+  return res.json();
+}
+
+export interface InviteContext {
+  role: Role;
+  roleLabel: string;
+  facility: string;
+}
+
+/** Public — no session needed. Returns null if the token is unknown or
+ * already claimed. */
+export async function getInviteContext(token: string): Promise<InviteContext | null> {
+  const res = await fetch(`/api/invites/${token}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export type ClaimInviteError = "missing_name" | "too_short" | "invalid_id" | "invalid_token" | "already_used" | "id_taken" | "network";
+
+export interface ClaimInviteInput {
+  firstName: string;
+  lastName: string;
+  eid: string;
+  email: string;
+  password: string;
+}
+
+/** Public — the invitee sets their own password here, so unlike an
+ * admin-created account there's no forced change afterward. Signs them in on
+ * success, same as signIn. */
+export async function claimInvite(
+  token: string,
+  input: ClaimInviteInput,
+  stayOnDevice: boolean,
+): Promise<{ ok: true; account: Account } | { ok: false; error: ClaimInviteError }> {
+  let json: { ok: boolean; error?: ClaimInviteError; account?: Account };
+  try {
+    const res = await fetch(`/api/invites/${token}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    json = await res.json();
+    if (!res.ok) return { ok: false, error: (json as { error?: ClaimInviteError }).error ?? "network" };
+  } catch {
+    return { ok: false, error: "network" };
+  }
+  if (!json.account) return { ok: false, error: "network" };
+
+  rememberDevice(json.account);
+  setSession(json.account.employeeId, stayOnDevice);
+  return { ok: true, account: json.account };
 }
 
 /** Two-step reset: current password stops working immediately, a new one is

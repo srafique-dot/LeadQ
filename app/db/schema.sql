@@ -16,6 +16,7 @@ create type lead_type as enum ('appointment', 'surgery_package', 'health_package
 create table accounts (
   employee_id text primary key check (employee_id ~ '^[A-Za-z]{2,}_\d{2,6}$'),
   name text not null,
+  email text not null default '',
   role role not null,
   password_hash text not null,
   must_change_password boolean not null default true,
@@ -23,6 +24,20 @@ create table accounts (
   active boolean not null default true,
   facility text not null default '',
   created_at timestamptz not null default now()
+);
+
+-- A superadmin-issued link letting one person self-register their own
+-- account. Role/facility/calling number are fixed by whoever creates the
+-- invite; the invitee only supplies their name, EID, email and password.
+create table invites (
+  token text primary key default encode(gen_random_bytes(16), 'hex'),
+  role role not null,
+  facility text not null default '',
+  calling_number text not null default '',
+  created_by text not null references accounts(employee_id),
+  created_at timestamptz not null default now(),
+  used_at timestamptz,
+  used_by text references accounts(employee_id)
 );
 
 create table leads (
