@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import styles from "./Requester.module.css";
 import { useAuth } from "../../context/AuthContext";
-import { listLeadsForOwner, serviceLine } from "../../api/leads";
+import { listLeadsForOwner, serviceLine, LEVEL1, LEVEL2 } from "../../api/leads";
 import type { Lead } from "../../api/types";
 import { STATUS_STYLE } from "./statusStyles";
 import { AddLeadModal } from "./components/AddLeadModal";
@@ -27,6 +27,7 @@ export function Requester() {
   const [importOpen, setImportOpen] = useState(false);
   const [entryDone, setEntryDone] = useState("");
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) listLeadsForOwner(user.employeeId).then(setLeads);
@@ -136,29 +137,61 @@ export function Requester() {
 
           {shown.map((lead) => {
             const st = STATUS_STYLE[lead.status];
+            const expanded = expandedId === lead.id;
             return (
-              <div key={lead.id} className={styles.row}>
-                <div className={styles.rowLeft}>
-                  <div className={styles.rowNameLine}>
-                    <span className={styles.rowName}>{lead.name}</span>
-                    {lead.urgent && <span className={`${styles.badge} ${styles.badgeUrgent}`}>URGENT</span>}
-                    {lead.cohort && <span className={`${styles.badge} ${styles.badgeCohort}`}>{lead.cohort}</span>}
-                    {lead.merged && <span className={`${styles.badge} ${styles.badgeMerged}`}>MERGED</span>}
+              <div key={lead.id}>
+                <div
+                  className={styles.row}
+                  style={{ cursor: lead.history.length ? "pointer" : "default" }}
+                  onClick={() => lead.history.length && setExpandedId(expanded ? null : lead.id)}
+                >
+                  <div className={styles.rowLeft}>
+                    <div className={styles.rowNameLine}>
+                      <span className={styles.rowName}>{lead.name}</span>
+                      {lead.urgent && <span className={`${styles.badge} ${styles.badgeUrgent}`}>URGENT</span>}
+                      {lead.cohort && <span className={`${styles.badge} ${styles.badgeCohort}`}>{lead.cohort}</span>}
+                      {lead.merged && <span className={`${styles.badge} ${styles.badgeMerged}`}>MERGED</span>}
+                    </div>
+                    <div className={styles.rowPhone}>{lead.phone}</div>
+                    <div className={styles.rowService}>
+                      {serviceLine(lead)} · {lead.facility}
+                    </div>
                   </div>
-                  <div className={styles.rowPhone}>{lead.phone}</div>
-                  <div className={styles.rowService}>
-                    {serviceLine(lead)} · {lead.facility}
+                  <div className={styles.rowRight}>
+                    <div className={styles.statusPill} style={{ background: st.bg, borderColor: st.border }}>
+                      <span className={styles.statusDot} style={{ background: st.dot }} />
+                      <span className={styles.statusText} style={{ color: st.fg }}>
+                        {st.label}
+                      </span>
+                    </div>
+                    <div className={styles.rowDetail}>
+                      {lead.detail}
+                      {lead.history.length > 0 && (
+                        <span style={{ marginLeft: 8, color: "var(--ink-faint)" }}>{expanded ? "▲ hide calls" : `▼ ${lead.history.length} call${lead.history.length === 1 ? "" : "s"}`}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className={styles.rowRight}>
-                  <div className={styles.statusPill} style={{ background: st.bg, borderColor: st.border }}>
-                    <span className={styles.statusDot} style={{ background: st.dot }} />
-                    <span className={styles.statusText} style={{ color: st.fg }}>
-                      {st.label}
-                    </span>
+                {expanded && (
+                  <div style={{ padding: "10px 20px 16px", background: "var(--surface-subtle)", display: "flex", flexDirection: "column", gap: 10 }}>
+                    {lead.history.map((h, i) => {
+                      const l2o = LEVEL2.find((o) => o.code === h.l2);
+                      const l1o = LEVEL1.find((o) => o.code === h.l1);
+                      return (
+                        <div key={i} style={{ fontSize: 13.5, lineHeight: 1.5 }}>
+                          <div>
+                            <span style={{ color: "var(--ink-faint)" }}>{h.when}</span>{" "}
+                            <span style={{ fontWeight: 600, color: h.l1 === "connected" ? "var(--primary-dark)" : "var(--danger)" }}>
+                              {l2o ? l2o.label : l1o ? l1o.label : h.l1}
+                            </span>{" "}
+                            <span style={{ color: "var(--ink-faint)" }}>· {h.agentName}</span>
+                          </div>
+                          {h.note && <div style={{ color: "var(--ink-secondary)", marginTop: 2 }}>{h.note}</div>}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className={styles.rowDetail}>{lead.detail}</div>
-                </div>
+                )}
               </div>
             );
           })}

@@ -7,6 +7,20 @@ const WIN = new Set(["appointment_purchased", "appointment_booked"]);
 const FAILED = new Set(["not_responding", "busy", "number_off", "call_rejected"]);
 const MAX_ATTEMPTS = 4;
 
+/** Human labels for l2 codes, mirrored from src/api/leads.ts's LEVEL2 —
+ * `detail` is shown to Requesters, so it can't carry the raw enum value. */
+const L2_LABELS: Record<string, string> = {
+  appointment_purchased: "Appointment booked + paid",
+  appointment_booked: "Appointment booked, not paid",
+  info_given: "Will decide later",
+  callback_later: "Call them back later",
+  ni_price: "Not interested — price",
+  ni_distance: "Not interested — too far",
+  ni_elsewhere: "Not interested — went elsewhere",
+  wrong_person: "Wrong person",
+  duplicate: "Same lead twice",
+};
+
 interface MergeBody {
   entry?: { channel: string; service: string; note: string };
 }
@@ -89,7 +103,7 @@ export default route({
 
         if (isTerminal) {
           status = b.l2 && WIN.has(b.l2) ? "booked" : "closed";
-          detail = `${b.l2} · ${new Date().toLocaleString()}`;
+          detail = `${b.l2 ? L2_LABELS[b.l2] ?? b.l2 : ""} · ${new Date().toLocaleString()}`;
         } else if (isFailed) {
           if (lead.attempt >= MAX_ATTEMPTS) {
             status = "closed";
@@ -106,7 +120,7 @@ export default route({
           detail = "Callback scheduled · " + b.nextActionDate;
         } else {
           status = "trying";
-          detail = (b.l2 ?? "Open") + " · " + new Date().toLocaleString();
+          detail = (b.l2 ? L2_LABELS[b.l2] ?? b.l2 : "Open") + " · " + new Date().toLocaleString();
         }
 
         const { rows } = await query<LeadRow>(
