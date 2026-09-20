@@ -18,8 +18,6 @@ const ROLE_META: Record<Role, { tag: string; label: string; desc: string; bg: st
   superadmin: { tag: "SUPERADMIN", label: "Manages people", desc: "Everything an admin can do, plus creating accounts and resetting passwords.", bg: "#E9F6F1", fg: "#125C3D" },
 };
 
-const HOSPITALS = ["UMCH Main", "Medix Uttara", "MA Rashid Clinic", "All sites"];
-
 type Filter = "all" | "staff" | "admins" | "off";
 
 export function Users() {
@@ -29,8 +27,6 @@ export function Users() {
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [niRole, setNiRole] = useState<Role | "">("");
-  const [niFacility, setNiFacility] = useState("");
-  const [niExt, setNiExt] = useState("");
   const [createdInvite, setCreatedInvite] = useState<Invite | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
 
@@ -56,8 +52,6 @@ export function Users() {
 
   const blockers: string[] = [];
   if (!niRole) blockers.push("Pick what they do.");
-  else if (!niFacility) blockers.push("Choose which hospital.");
-  else if (niRole === "agent" && !niExt.trim()) blockers.push("Agents need the number they call from — the monthly call file is matched on it.");
 
   const shown = accounts.filter((a) => {
     if (filter === "all") return true;
@@ -71,8 +65,6 @@ export function Users() {
 
   function openInvite() {
     setNiRole("");
-    setNiFacility("");
-    setNiExt("");
     setCreatedInvite(null);
     setFlash("");
     setInviteOpen(true);
@@ -81,7 +73,7 @@ export function Users() {
   async function handleCreateInvite() {
     if (blockers.length || !niRole) return;
     try {
-      const invite = await createInvite({ role: niRole, facility: niFacility, callingNumber: niExt, createdBy: currentUser.employeeId });
+      const invite = await createInvite({ role: niRole, facility: "", callingNumber: "", createdBy: currentUser.employeeId });
       setCreatedInvite(invite);
       refreshInvites();
     } catch (err) {
@@ -355,33 +347,6 @@ export function Users() {
                     </div>
                   </div>
 
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>Which hospital</span>
-                    <select value={niFacility} onChange={(e) => setNiFacility(e.target.value)} className={styles.textInput} style={{ maxWidth: 300 }}>
-                      <option value="">Choose one…</option>
-                      {HOSPITALS.map((h) => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className={styles.field}>
-                    <span className={styles.fieldLabel}>
-                      The number they call from <span style={{ fontWeight: 500, color: "var(--ink-faint)" }}>— {niRole === "agent" ? "required for agents" : "optional"}</span>
-                    </span>
-                    <input
-                      value={niExt}
-                      onChange={(e) => setNiExt(e.target.value)}
-                      placeholder={niRole === "agent" ? "2107" : "extension or mobile"}
-                      className={styles.textInput}
-                      style={{ maxWidth: 260, fontFamily: "var(--font-mono)", fontSize: 16 }}
-                    />
-                    <span className={styles.hint} style={{ color: "var(--ink-faint)" }}>
-                      {niRole === "agent"
-                        ? "Desk extension, or their mobile if they dial from their own phone. The monthly call file has no names in it — this is what ties a call to this person."
-                        : "Only needed for people who place calls."}
-                    </span>
-                  </label>
                 </div>
                 <div className={styles.modalFooter}>
                   <button
