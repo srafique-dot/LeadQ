@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import styles from "../Requester.module.css";
 import { importLeads, type ImportRow, type ImportResult } from "../../../api/leads";
-import type { Account } from "../../../api/types";
+import type { Account, LeadType } from "../../../api/types";
 
 interface ImportModalProps {
   currentUser: Account;
@@ -11,24 +11,151 @@ interface ImportModalProps {
 
 const RECENT_BATCHES = ["Sep health camp — Uttara", "Meta ads — Sep", "Corporate: Brac Bank"];
 
-function parseCsv(text: string): ImportRow[] {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+/** Website "Interested in" / "Category" text → our lead type. Case-insensitive
+ * on the trimmed value. Anything unrecognized falls back to general_inquiry
+ * rather than rejecting the row — better an under-tagged lead than a dropped one. */
+const CATEGORY_TO_LEAD_TYPE: Record<string, LeadType> = {
+  "surgery packages": "surgery_package",
+  "surgery package": "surgery_package",
+  "general inquiry": "general_inquiry",
+  "general inquiries": "general_inquiry",
+  "health packages": "health_package",
+  "health package": "health_package",
+  "health package inquiry": "health_package",
+  "corporate health": "corporate_health",
+  "booking an appointment": "appointment",
+  "emergency assistance": "appointment",
+};
+const URGENT_CATEGORIES = new Set(["emergency assistance"]);
+const BLANK_PLACEHOLDERS = new Set(["—", "-", "–", "n/a", "na"]);
+
+function clean(v: string | undefined): string {
+  const t = (v ?? "").trim();
+  return BLANK_PLACEHOLDERS.has(t.toLowerCase()) ? "" : t;
+}
+
+/** Splits one delimited line respecting double-quoted fields (so a quoted
+ * "Sep 20, 2026" isn't torn apart by its own comma), the way a real
+ * spreadsheet export needs. */
+function splitDelimited(line: string, delimiter: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else inQuotes = false;
+      } else cur += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === delimiter) {
+      out.push(cur);
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out.map((c) => c.trim());
+}
+
+const emptyRow = (name: string, phone: string, facility: string, doctor: string): ImportRow => ({
+  name,
+  phone,
+  facility,
+  doctor,
+  department: "",
+  email: "",
+  note: "",
+  leadType: "general_inquiry",
+  wantDate: "",
+  preferredTime: "",
+  urgent: false,
+  urgentReason: "",
+});
+
+/** Recognizes the hospital's real website export shapes (consultation
+ * bookings, general/package/surgery enquiries, the corporate lead form —
+ * each with a different column layout) by header name rather than column
+ * position, so it survives the columns being reordered or a form changing.
+ * Falls back to a plain name/phone/facility/department 4-column file
+ * (the original, simplest shape) when no recognized headers are found. */
+function parseImportFile(text: string): ImportRow[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (!lines.length) return [];
-  const splitLine = (l: string) => l.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
 
-  const first = splitLine(lines[0]);
-  const looksLikeHeader = first[0]?.toLowerCase() === "name";
-  const dataLines = looksLikeHeader ? lines.slice(1) : lines;
+  const tabCount = (lines[0].match(/\t/g) ?? []).length;
+  const commaCount = (lines[0].match(/,/g) ?? []).length;
+  const delimiter = tabCount > commaCount ? "\t" : ",";
 
-  return dataLines
-    .map(splitLine)
-    .filter((cols) => cols.length >= 2 && cols[0] && cols[1])
-    .map((cols) => ({
-      name: cols[0] ?? "",
-      phone: cols[1] ?? "",
-      facility: cols[2] ?? "",
-      doctorOrDept: cols[3] ?? "",
-    }));
+  const header = splitDelimited(lines[0], delimiter).map((h) => h.toLowerCase());
+  const col = (...names: string[]): number => {
+    for (const n of names) {
+      const i = header.indexOf(n);
+      if (i !== -1) return i;
+    }
+    return -1;
+  };
+
+  const iName = col("patient name", "name");
+  const iPhone = col("phone", "mobile");
+
+  if (iName === -1 || iPhone === -1) {
+    // Legacy/plain shape: name, phone, facility, department — no recognized header.
+    const first = splitDelimited(lines[0], delimiter);
+    const hasHeader = first[0]?.toLowerCase() === "name";
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+    return dataLines
+      .map((l) => splitDelimited(l, delimiter))
+      .filter((cols) => cols.length >= 2 && cols[0] && cols[1])
+      .map((cols) => emptyRow(cols[0] ?? "", cols[1] ?? "", clean(cols[2]), clean(cols[3])));
+  }
+
+  const iEmail = col("email");
+  const iFacility = col("facility name", "facility code", "facility");
+  const iDoctor = col("doctor name", "doctor");
+  const iDept = col("department");
+  const iWantDate = col("preferred date", "date");
+  const iTime = col("time slot", "preferred time");
+  const iCategory = col("category");
+  const iInterestedIn = col("interested in");
+  const iNotes = col("notes", "message", "note");
+
+  return lines
+    .slice(1)
+    .map((l) => splitDelimited(l, delimiter))
+    .filter((cols) => cols.length > Math.max(iName, iPhone) && cols[iName] && cols[iPhone])
+    .map((cols) => {
+      // "Category" (when present) is the reliable type signal; "Interested in"
+      // then becomes extra descriptive text folded into the note. When there's
+      // no separate Category column, "Interested in" itself holds the type
+      // (e.g. the corporate lead form's "Booking an Appointment").
+      const categoryRaw = clean(iCategory !== -1 ? cols[iCategory] : iInterestedIn !== -1 ? cols[iInterestedIn] : "");
+      const categoryKey = categoryRaw.toLowerCase();
+      const leadType = CATEGORY_TO_LEAD_TYPE[categoryKey] ?? "general_inquiry";
+      const urgent = URGENT_CATEGORIES.has(categoryKey);
+      const extraDetail = iCategory !== -1 && iInterestedIn !== -1 ? clean(cols[iInterestedIn]) : "";
+      const note = [extraDetail, iNotes !== -1 ? clean(cols[iNotes]) : ""].filter(Boolean).join(" — ");
+
+      return {
+        name: cols[iName] ?? "",
+        phone: cols[iPhone] ?? "",
+        facility: iFacility !== -1 ? clean(cols[iFacility]) : "",
+        doctor: iDoctor !== -1 ? clean(cols[iDoctor]) : "",
+        department: iDept !== -1 ? clean(cols[iDept]) : "",
+        email: iEmail !== -1 ? clean(cols[iEmail]) : "",
+        note,
+        leadType,
+        wantDate: iWantDate !== -1 ? clean(cols[iWantDate]) : "",
+        preferredTime: iTime !== -1 ? clean(cols[iTime]) : "",
+        urgent,
+        urgentReason: urgent ? "Marked emergency on the website form" : "",
+      };
+    });
 }
 
 export function ImportModal({ currentUser, onClose, onImported }: ImportModalProps) {
@@ -46,9 +173,9 @@ export function ImportModal({ currentUser, onClose, onImported }: ImportModalPro
     file
       .text()
       .then(async (text) => {
-        const rows = parseCsv(text);
+        const rows = parseImportFile(text);
         if (!rows.length) {
-          setParseError("Couldn’t find any rows — check the file has name, phone, hospital, doctor or department.");
+          setParseError("Couldn’t find any rows — check the file has a name and a phone number column.");
           return;
         }
         setParseError("");

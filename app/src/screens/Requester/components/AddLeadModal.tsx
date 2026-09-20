@@ -31,6 +31,7 @@ const LEAD_TYPES: { value: LeadType; label: string }[] = [
   { value: "investigative_procedure", label: "Investigative procedure / তদন্তমূলক প্রসিডিউর" },
   { value: "surgery_package", label: "Surgery package / সার্জারি প্যাকেজ" },
   { value: "health_package", label: "Health package / স্বাস্থ্য প্যাকেজ" },
+  { value: "corporate_health", label: "Corporate health / কর্পোরেট স্বাস্থ্য" },
   { value: "therapy", label: "Therapies / থেরাপি" },
   { value: "dialysis", label: "Dialysis / ডায়ালাইসিস" },
   { value: "ipd", label: "IPD admission / আইপিডি ভর্তি" },
@@ -81,6 +82,11 @@ const SERVICE_FIELDS: Record<
   },
   health_package: {
     primaryLabel: "Which package", primaryBn: "কোন প্যাকেজ", primaryPlaceholder: "e.g. Executive health check-up",
+    secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
+    orPattern: false,
+  },
+  corporate_health: {
+    primaryLabel: "What they need", primaryBn: "কী প্রয়োজন", primaryPlaceholder: "e.g. Corporate check-up package, cabin admission",
     secondaryLabel: "Doctor, if they named one", secondaryBn: "ডাক্তারের নাম (যদি থাকে)", secondaryPlaceholder: "e.g. Dr. name",
     orPattern: false,
   },

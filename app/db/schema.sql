@@ -13,7 +13,7 @@ create type level2_code as enum (
 );
 create type lead_type as enum (
   'appointment', 'vaccine_query', 'lab_test', 'radiology', 'investigative_procedure',
-  'surgery_package', 'health_package', 'therapy', 'dialysis', 'ipd', 'day_care',
+  'surgery_package', 'health_package', 'corporate_health', 'therapy', 'dialysis', 'ipd', 'day_care',
   'international_patient', 'general_inquiry'
 );
 

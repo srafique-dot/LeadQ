@@ -16,6 +16,7 @@ export const LEAD_TYPES: { code: LeadType; label: string }[] = [
   { code: "investigative_procedure", label: "Investigative procedure" },
   { code: "surgery_package", label: "Surgery package" },
   { code: "health_package", label: "Health package" },
+  { code: "corporate_health", label: "Corporate health" },
   { code: "therapy", label: "Therapies" },
   { code: "dialysis", label: "Dialysis" },
   { code: "ipd", label: "IPD admission" },
@@ -83,7 +84,15 @@ export interface ImportRow {
   name: string;
   phone: string;
   facility: string;
-  doctorOrDept: string;
+  doctor: string;
+  department: string;
+  email: string;
+  note: string;
+  leadType: LeadType;
+  wantDate: string;
+  preferredTime: string;
+  urgent: boolean;
+  urgentReason: string;
 }
 
 export interface ImportResult {

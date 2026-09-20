@@ -27,7 +27,15 @@ interface ImportRow {
   name: string;
   phone: string;
   facility: string;
-  doctorOrDept: string;
+  doctor: string;
+  department: string;
+  email: string;
+  note: string;
+  leadType: string;
+  wantDate: string;
+  preferredTime: string;
+  urgent: boolean;
+  urgentReason: string;
 }
 
 interface ImportBody {
@@ -88,11 +96,31 @@ export default route({
           duplicates.push({ row, existing: await serializeLead(existingRows[0]) });
           continue;
         }
+        const detail = row.urgent ? "Urgent · first in the queue · just now" : "In the queue · just now";
         const { rows: inserted } = await query<LeadRow>(
-          `insert into leads (name, phone, facility, doctor, status, detail, cohort, owner_id, owner_name, channel)
-           values ($1,$2,$3,$4,'waiting','In the queue · just now',$5,$6,$7,'Import')
+          `insert into leads
+             (name, phone, facility, doctor, department, email, note, lead_type, want_date, preferred_time,
+              status, detail, urgent, urgent_reason, cohort, owner_id, owner_name, channel)
+           values ($1,$2,$3,$4,$5,$6,$7,$8,nullif($9,'')::date,$10,'waiting',$11,$12,$13,$14,$15,$16,'Import')
            returning *`,
-          [row.name, row.phone, row.facility, row.doctorOrDept, cohort, ownerId, ownerName],
+          [
+            row.name,
+            row.phone,
+            row.facility,
+            row.doctor,
+            row.department,
+            row.email,
+            row.note,
+            row.leadType || "general_inquiry",
+            row.wantDate,
+            row.preferredTime,
+            detail,
+            row.urgent,
+            row.urgentReason,
+            cohort,
+            ownerId,
+            ownerName,
+          ],
         );
         created.push(await serializeLead(inserted[0]));
       }

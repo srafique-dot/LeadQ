@@ -38,6 +38,7 @@ export type LeadType =
   | "investigative_procedure"
   | "surgery_package"
   | "health_package"
+  | "corporate_health"
   | "therapy"
   | "dialysis"
   | "ipd"
