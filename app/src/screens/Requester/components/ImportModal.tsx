@@ -15,14 +15,28 @@ const RECENT_BATCHES = ["Sep health camp — Uttara", "Meta ads — Sep", "Corpo
  * on the trimmed value. Anything unrecognized falls back to general_inquiry
  * rather than rejecting the row — better an under-tagged lead than a dropped one. */
 const CATEGORY_TO_LEAD_TYPE: Record<string, LeadType> = {
+  "appointment": "appointment",
+  "surgery": "surgery_package",
   "surgery packages": "surgery_package",
   "surgery package": "surgery_package",
   "general inquiry": "general_inquiry",
   "general inquiries": "general_inquiry",
-  "health packages": "health_package",
   "health package": "health_package",
+  "health packages": "health_package",
   "health package inquiry": "health_package",
   "corporate health": "corporate_health",
+  "vaccine query": "vaccine_query",
+  "lab test": "lab_test",
+  "lab tests": "lab_test",
+  "radiology": "radiology",
+  "investigative procedure": "investigative_procedure",
+  "therapy": "therapy",
+  "therapies": "therapy",
+  "dialysis": "dialysis",
+  "ipd": "ipd",
+  "ipd admission": "ipd",
+  "day care": "day_care",
+  "international patient": "international_patient",
   "booking an appointment": "appointment",
   "emergency assistance": "appointment",
 };
@@ -158,32 +172,134 @@ function parseImportFile(text: string): ImportRow[] {
     });
 }
 
+const DATE_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+// "Sep 21, 6:10 PM" style — this is the enquiry's own timestamp on some of
+// the website's detail pages, not a preferred date. Recognized so it's
+// skipped rather than mis-filed as one (it won't cast to a date column).
+const DATE_TIMESTAMP_RE = /^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{1,2}:\d{2}\s*(AM|PM)?$/i;
+const TIME_SLOTS = new Set(["morning", "afternoon", "evening"]);
+const DOCTOR_LINE_RE = /^(Dr\.?|Prof\.?)\s/i;
+const PHONE_LINE_RE = /^\+?[\d ]{7,15}$/;
+
+function isCategoryLine(line: string): LeadType | null {
+  const key = line.trim().toLowerCase().replace(/:$/, "");
+  return CATEGORY_TO_LEAD_TYPE[key] ?? null;
+}
+
+/** The website's "View details" pages copy-paste as unlabeled, multi-line
+ * text blocks — no delimiters, and the field that appears at a given line
+ * position changes by category (an appointment has a date + time slot and a
+ * doctor name at the end; a general inquiry has neither). Records are
+ * anchored on a category line ("appointment:", "Surgery:", "General
+ * Inquiry" — colon optional, case-insensitive) rather than blank lines,
+ * because a blank line can appear *inside* one record (the appointment
+ * shape puts the doctor's name after the notes, separated by one). Fields
+ * are recognized by shape (phone/email/date/time-slot/doctor pattern)
+ * rather than position, since position isn't stable across categories —
+ * the only fixed position is facility, which is reliably the line right
+ * after the category everywhere it's been seen. */
+function parsePastedLeads(text: string): ImportRow[] {
+  type Block = { leadType: LeadType; urgent: boolean; lines: string[] };
+  const blocks: Block[] = [];
+  let current: Block | null = null;
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    const cat = isCategoryLine(line);
+    if (cat) {
+      if (current) blocks.push(current);
+      current = { leadType: cat, urgent: URGENT_CATEGORIES.has(line.toLowerCase().replace(/:$/, "")), lines: [] };
+    } else if (current && line) {
+      current.lines.push(line);
+    }
+  }
+  if (current) blocks.push(current);
+
+  return blocks
+    .filter((b) => b.lines.length >= 2) // at minimum a facility + something identifying
+    .map((b) => {
+      const facility = clean(b.lines[0]);
+      let doctor = "";
+      let wantDate = "";
+      let preferredTime = "";
+      let phone = "";
+      let email = "";
+      const leftover: string[] = [];
+
+      for (const line of b.lines.slice(1)) {
+        if (!phone && PHONE_LINE_RE.test(line)) {
+          phone = line;
+        } else if (!email && line.includes("@")) {
+          email = line;
+        } else if (!wantDate && DATE_ISO_RE.test(line)) {
+          wantDate = line;
+        } else if (DATE_TIMESTAMP_RE.test(line)) {
+          // recognized as the enquiry's own timestamp — deliberately dropped
+        } else if (!preferredTime && TIME_SLOTS.has(line.toLowerCase())) {
+          preferredTime = line;
+        } else if (!doctor && DOCTOR_LINE_RE.test(line)) {
+          doctor = line;
+        } else {
+          leftover.push(line);
+        }
+      }
+
+      const name = leftover.shift() ?? "";
+      const note = leftover.join(" — ");
+
+      return {
+        name,
+        phone,
+        facility,
+        doctor,
+        department: "",
+        email,
+        note,
+        leadType: b.leadType,
+        wantDate,
+        preferredTime,
+        urgent: b.urgent,
+        urgentReason: b.urgent ? "Marked emergency on the website form" : "",
+      };
+    })
+    .filter((r) => r.name && r.phone);
+}
+
 export function ImportModal({ currentUser, onClose, onImported }: ImportModalProps) {
   const [cohort, setCohort] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [parseError, setParseError] = useState("");
+  const [pasted, setPasted] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ready = cohort.trim().length > 0;
+
+  async function importRows(rows: ImportRow[], notFoundMessage: string) {
+    if (!rows.length) {
+      setParseError(notFoundMessage);
+      return;
+    }
+    setParseError("");
+    const outcome = await importLeads(rows, cohort.trim(), currentUser.employeeId, currentUser.name, instructions.trim());
+    setResult(outcome);
+    onImported(outcome, cohort.trim());
+  }
 
   function handleFile(file: File) {
     if (!ready) return;
     file
       .text()
-      .then(async (text) => {
-        const rows = parseImportFile(text);
-        if (!rows.length) {
-          setParseError("Couldn’t find any rows — check the file has a name and a phone number column.");
-          return;
-        }
-        setParseError("");
-        const outcome = await importLeads(rows, cohort.trim(), currentUser.employeeId, currentUser.name, instructions.trim());
-        setResult(outcome);
-        onImported(outcome, cohort.trim());
-      })
+      .then((text) => importRows(parseImportFile(text), "Couldn’t find any rows — check the file has a name and a phone number column."))
       .catch(() => setParseError("Couldn’t read that file."));
+  }
+
+  function handlePasteImport() {
+    if (!ready || !pasted.trim()) return;
+    importRows(
+      parsePastedLeads(pasted),
+      "Couldn’t find a lead in that text — check it has a category line (e.g. “Appointment:”), a phone number and a name.",
+    );
   }
 
   return (
@@ -270,6 +386,30 @@ export function ImportModal({ currentUser, onClose, onImported }: ImportModalPro
             }}
           />
         </div>
+
+        <label className={styles.field} style={{ marginTop: 14 }}>
+          <span className={styles.fieldLabel}>Or paste straight from the website</span>
+          <textarea
+            value={pasted}
+            onChange={(e) => setPasted(e.target.value)}
+            rows={4}
+            placeholder={"Copy one or more enquiries from the website's detail page and paste them here — one or many at once"}
+            className={styles.textarea}
+            disabled={!ready}
+          />
+          <span className={styles.hint}>Works whether you copy one enquiry or several at a time.</span>
+        </label>
+        {pasted.trim() && (
+          <button
+            type="button"
+            className={styles.pillBtn}
+            style={{ marginTop: 8, opacity: ready ? 1 : 0.6 }}
+            disabled={!ready}
+            onClick={handlePasteImport}
+          >
+            Add pasted leads
+          </button>
+        )}
 
         {parseError && (
           <div className={styles.duplicateReview} style={{ background: "var(--danger-tint)", borderColor: "var(--danger-tint-border)", color: "var(--danger)" }}>
