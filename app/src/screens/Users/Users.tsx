@@ -10,7 +10,14 @@ import {
   listInvites,
 } from "../../api/auth";
 import { listChannels, createChannel, setChannelActive } from "../../api/channels";
+import { getSettings, setSetting, type SmsTemplateKey } from "../../api/settings";
 import type { Channel, Invite, Role } from "../../api/types";
+
+const SMS_TEMPLATES: { key: SmsTemplateKey; label: string; hint: string; tokens: string }[] = [
+  { key: "sms_missed_call", label: "Missed-call SMS", hint: "Sent after 3 unanswered attempts.", tokens: "{name}" },
+  { key: "sms_callback_confirm", label: "Callback confirmation", hint: "Sent when a callback date is logged.", tokens: "{name}, {date}" },
+  { key: "sms_booking_confirm", label: "Booking confirmation", hint: "Sent when an appointment is booked or purchased.", tokens: "{name}, {date}, {time}, {doctor}, {facility}" },
+];
 
 const ROLE_META: Record<Role, { tag: string; label: string; desc: string; bg: string; fg: string }> = {
   requester: { tag: "REQUESTER", label: "Adds leads", desc: "Business development, marketing, front desk. Submits leads and sees their outcome.", bg: "#E7F1F2", fg: "#0A5C64" },
@@ -41,6 +48,10 @@ export function Users() {
   const [channels, setChannels] = useState<Channel[]>([]);
   const [newChannel, setNewChannel] = useState("");
 
+  const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
+  const [smsDrafts, setSmsDrafts] = useState<Record<string, string>>({});
+  const [smsSavedKey, setSmsSavedKey] = useState("");
+
   function refreshInvites() {
     listInvites().then(setInvites);
   }
@@ -49,10 +60,18 @@ export function Users() {
     listChannels().then(setChannels);
   }
 
+  function refreshSmsTemplates() {
+    getSettings().then((s) => {
+      setSmsTemplates(s);
+      setSmsDrafts(s);
+    });
+  }
+
   useEffect(() => {
     if (user?.role === "superadmin") {
       refreshInvites();
       refreshChannels();
+      refreshSmsTemplates();
     }
   }, [user?.employeeId]);
 
@@ -61,6 +80,14 @@ export function Users() {
     await createChannel(newChannel.trim(), user.employeeId);
     setNewChannel("");
     refreshChannels();
+  }
+
+  async function handleSaveTemplate(key: SmsTemplateKey) {
+    if (!user) return;
+    await setSetting(key, smsDrafts[key] ?? "", user.employeeId);
+    setSmsTemplates((t) => ({ ...t, [key]: smsDrafts[key] ?? "" }));
+    setSmsSavedKey(key);
+    setTimeout(() => setSmsSavedKey(""), 2000);
   }
 
   if (!user) return null;
@@ -339,6 +366,48 @@ export function Users() {
               </div>
             ))}
             {channels.length === 0 && <div className={styles.emptyRow}>No lead sources yet.</div>}
+          </div>
+        )}
+
+        {canManage && (
+          <div className={styles.listCard} style={{ marginTop: 16 }}>
+            <div className={styles.listHead}>
+              <span className={styles.listHeadTitle}>SMS templates</span>
+            </div>
+            <div style={{ padding: "0 20px 4px", fontSize: 13, color: "var(--ink-faint)", lineHeight: 1.6 }}>
+              There's no SMS gateway — agents copy this text and send it from their own phone at the point each one applies. Anything in{" "}
+              {"{braces}"} gets filled in from the lead automatically.
+            </div>
+            {SMS_TEMPLATES.map((t) => {
+              const dirty = smsDrafts[t.key] !== smsTemplates[t.key];
+              return (
+                <div key={t.key} style={{ padding: "14px 20px", borderTop: "1px solid var(--border-light)" }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{t.label}</span>
+                    <span style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>{t.hint} Tokens: {t.tokens}</span>
+                  </div>
+                  <textarea
+                    value={smsDrafts[t.key] ?? ""}
+                    onChange={(e) => setSmsDrafts((d) => ({ ...d, [t.key]: e.target.value }))}
+                    rows={2}
+                    className={styles.textInput}
+                    style={{ width: "100%", resize: "vertical", fontFamily: "inherit" }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+                    <button
+                      type="button"
+                      className={styles.actionBtn}
+                      disabled={!dirty}
+                      style={{ opacity: dirty ? 1 : 0.5 }}
+                      onClick={() => handleSaveTemplate(t.key)}
+                    >
+                      Save
+                    </button>
+                    {smsSavedKey === t.key && <span style={{ fontSize: 12.5, color: "var(--success)" }}>Saved</span>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

@@ -19,6 +19,7 @@ import {
   MAX_ATTEMPTS,
 } from "../../api/leads";
 import { setPresence } from "../../api/auth";
+import { getSettings, fillTemplate } from "../../api/settings";
 import type { Lead, Level1Code, Level2Code, Presence } from "../../api/types";
 import { cohortColor } from "../../lib/cohortColor";
 import { AddLeadModal } from "../Requester/components/AddLeadModal";
@@ -39,6 +40,37 @@ function ageLabel(m: number): string {
 
 function slaColor(m: number): string {
   return m <= 5 ? "#1B7A4B" : m <= 20 ? "#9A6206" : "#B4362A";
+}
+
+/** No SMS gateway exists — this generates the text and lets the agent copy
+ * it into their own phone's SMS app. Shared across the three trigger points
+ * (missed-call, callback confirmation, booking confirmation) so they read
+ * and behave identically; only the title/text/requiredness differ. */
+function SmsCopyBox({ title, text, required, copied, onCopy }: { title: string; text: string; required?: boolean; copied: boolean; onCopy: () => void }) {
+  const flagged = !!required && !copied;
+  return (
+    <div className={styles.smsBox} style={flagged ? { background: "var(--danger-tint)", borderColor: "var(--danger-tint-border)" } : undefined}>
+      <div className={styles.smsTitle} style={{ color: flagged ? "#7A2F26" : "var(--ink)" }}>
+        {copied ? `${title} — copied` : flagged ? `${title} — copy before saving` : title}
+      </div>
+      <div className={styles.smsFootnote} style={{ whiteSpace: "pre-wrap" }}>{text}</div>
+      <button
+        type="button"
+        className={styles.smsBtn}
+        style={copied ? { background: "var(--success-tint)", color: "var(--success-dark)", borderColor: "var(--success-tint-border)" } : { background: "var(--primary)", color: "#fff" }}
+        onClick={() => {
+          try {
+            navigator.clipboard?.writeText(text);
+          } catch {
+            /* clipboard unavailable — the text is still visible to select by hand */
+          }
+          onCopy();
+        }}
+      >
+        {copied ? "Copied · paste into your SMS app" : "Copy SMS text"}
+      </button>
+    </div>
+  );
 }
 
 function isoPlus(days: number): string {
@@ -63,7 +95,10 @@ export function Agent() {
   const [note, setNote] = useState("");
   const [nextActionDate, setNextActionDate] = useState("");
   const [erpRef, setErpRef] = useState("");
-  const [smsSent, setSmsSent] = useState(false);
+  const [smsCopied, setSmsCopied] = useState(false);
+  const [callbackSmsCopied, setCallbackSmsCopied] = useState(false);
+  const [bookingSmsCopied, setBookingSmsCopied] = useState(false);
+  const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [presence, setPresenceState] = useState<Presence>("available");
@@ -83,6 +118,10 @@ export function Agent() {
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    getSettings().then(setSmsTemplates);
   }, []);
 
   useEffect(() => {
@@ -169,7 +208,9 @@ export function Agent() {
     setNote("");
     setNextActionDate("");
     setErpRef("");
-    setSmsSent(false);
+    setSmsCopied(false);
+    setCallbackSmsCopied(false);
+    setBookingSmsCopied(false);
     setDetailsOpen(false);
   }
 
@@ -194,7 +235,7 @@ export function Agent() {
   else if (l1 === "connected" && !l2) blockers.push("Pick what they said.");
   else if (notesRequired && note.trim().length < 4) blockers.push("Write a short note — required when they are not interested.");
   else if (l2 === "callback_later" && !nextActionDate) blockers.push("Choose when to call again.");
-  else if (smsRequired && !smsSent) blockers.push("Send the SMS first — this is call 3.");
+  else if (smsRequired && !smsCopied) blockers.push("Copy the SMS text first — this is call 3.");
   else if (erpRefRequired && !erpRef.trim())
     blockers.push("Write the ERP reference — this booking is for someone else, so it's the only way to match it back to them later.");
 
@@ -657,6 +698,20 @@ export function Agent() {
                           className={styles.refInput}
                         />
                       </label>
+                      {smsTemplates.sms_booking_confirm && (
+                        <SmsCopyBox
+                          title="Booking confirmation SMS"
+                          text={fillTemplate(smsTemplates.sms_booking_confirm, {
+                            name: lead.name,
+                            date: lead.wantDate,
+                            time: lead.preferredTime,
+                            doctor: lead.doctor,
+                            facility: lead.facility,
+                          })}
+                          copied={bookingSmsCopied}
+                          onCopy={() => setBookingSmsCopied(true)}
+                        />
+                      )}
                     </div>
                   )}
 
@@ -693,29 +748,26 @@ export function Agent() {
                           style={{ borderColor: nextActionDate ? "var(--success-tint-border)" : "var(--border-input)" }}
                         />
                       </div>
+                      {nextActionDate && smsTemplates.sms_callback_confirm && (
+                        <SmsCopyBox
+                          title="Callback confirmation SMS"
+                          text={fillTemplate(smsTemplates.sms_callback_confirm, { name: lead.name, date: nextActionDate })}
+                          copied={callbackSmsCopied}
+                          onCopy={() => setCallbackSmsCopied(true)}
+                        />
+                      )}
                     </div>
                   )}
 
-                  {!!l1 && FAILED.includes(l1) && (
+                  {!!l1 && FAILED.includes(l1) && smsTemplates.sms_missed_call && (
                     <div className={styles.sectionDivider}>
-                      <div
-                        className={styles.smsBox}
-                        style={smsRequired && !smsSent ? { background: "var(--danger-tint)", borderColor: "var(--danger-tint-border)" } : undefined}
-                      >
-                        <div className={styles.smsTitle} style={{ color: smsRequired && !smsSent ? "#7A2F26" : "var(--ink)" }}>
-                          {smsSent ? "SMS sent" : smsRequired ? "Send the SMS — required before saving" : "Send a missed-call SMS"}
-                        </div>
-                        <div className={styles.smsFootnote}>{smsSent ? "Logged with a timestamp." : "Standard text asking them to call 10688 back."}</div>
-                        <button
-                          type="button"
-                          disabled={smsSent}
-                          className={styles.smsBtn}
-                          style={smsSent ? { background: "var(--success-tint)", color: "var(--success-dark)", borderColor: "var(--success-tint-border)" } : { background: "var(--primary)", color: "#fff" }}
-                          onClick={() => setSmsSent(true)}
-                        >
-                          {smsSent ? "Sent · logged" : "Send SMS"}
-                        </button>
-                      </div>
+                      <SmsCopyBox
+                        title="Missed-call SMS"
+                        text={fillTemplate(smsTemplates.sms_missed_call, { name: lead.name })}
+                        required={smsRequired}
+                        copied={smsCopied}
+                        onCopy={() => setSmsCopied(true)}
+                      />
                     </div>
                   )}
 
