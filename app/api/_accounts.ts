@@ -14,6 +14,7 @@ export interface AccountRow {
   calling_number: string;
   active: boolean;
   facility: string;
+  presence?: string | null;
 }
 
 export function serializeAccount(a: AccountRow) {
@@ -27,5 +28,6 @@ export function serializeAccount(a: AccountRow) {
     callingNumber: a.calling_number,
     active: a.active,
     facility: a.facility,
+    presence: a.presence ?? "off",
   };
 }

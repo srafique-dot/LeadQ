@@ -62,7 +62,7 @@ export default route({
       const { rows } = await query<AccountRow>(
         `insert into accounts (employee_id, name, email, role, password_hash, must_change_password, calling_number, facility)
          values ($1,$2,$3,$4,$5,false,$6,$7)
-         returning employee_id, name, email, role, must_change_password, calling_number, active, facility`,
+         returning employee_id, name, email, role, must_change_password, calling_number, active, facility, presence`,
         [employeeId, name, (b.email ?? "").trim(), invite.role, hash, invite.calling_number, invite.facility],
       );
       await query("update invites set used_at = now(), used_by = $1 where token = $2", [employeeId, token]);

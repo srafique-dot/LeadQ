@@ -166,11 +166,43 @@ export const TERMINAL: Level2Code[] = ["appointment_purchased", "appointment_boo
 export const FAILED: Level1Code[] = ["not_responding", "busy", "number_off", "call_rejected"];
 export const MAX_ATTEMPTS = 4;
 
-/** Leads eligible for an agent to work: open, not sent to a supervisor,
- * urgent first, then oldest first (arrival order). System decides — the
- * agent doesn't choose. */
-export function getAgentQueue(): Promise<Lead[]> {
-  return getJson("/api/leads?queue=1");
+/** This agent's own queue: the working set routed to them, topped up from
+ * the unassigned pool on each call, plus anything overdue they're allowed to
+ * cover while its owner is away. Urgent first, then oldest first. */
+export function getAgentQueue(agentId: string): Promise<Lead[]> {
+  return getJson(`/api/leads?queue=1&agentId=${encodeURIComponent(agentId)}`);
+}
+
+export class LeadClaimedError extends Error {
+  constructor(public holderName: string) {
+    super(`${holderName} is on this lead`);
+    this.name = "LeadClaimedError";
+  }
+}
+
+/** Takes the "I'm on this call" lock. Throws LeadClaimedError if another
+ * agent got there first — the check is atomic server-side, so this is the
+ * only thing standing between two agents and the same phone number. */
+export async function claimLead(leadId: string, agentId: string): Promise<Lead> {
+  const res = await fetch(`/api/leads/${leadId}/claim`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agentId }),
+  });
+  const json = await res.json();
+  if (res.status === 409) throw new LeadClaimedError(json.holderName ?? "Another agent");
+  if (!res.ok) throw new Error(json.error ?? "Could not open that lead.");
+  return json;
+}
+
+export function releaseLead(leadId: string, agentId: string): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/release`, { agentId });
+}
+
+/** Supervisor override — hand a lead to a specific agent, or pass null to
+ * drop it back into the pool. Clears any stuck claim on the way. */
+export function reassignLead(leadId: string, agentId: string | null): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/reassign`, { agentId });
 }
 
 export async function searchLeads(term: string): Promise<Lead[]> {
@@ -244,12 +276,32 @@ export interface LeadSummary {
   escalatedAt?: string;
 }
 
+/** A lead someone claimed and then stopped working — opened, never
+ * dispositioned. The claim expires on its own; this surfaces it first. */
+export interface AbandonedClaim {
+  id: string;
+  name: string;
+  claimedBy: string;
+  claimedByName: string;
+  heldMin: number;
+}
+
+export interface RosterEntry {
+  agentId: string;
+  agentName: string;
+  presence: "available" | "break" | "off";
+  assigned: number;
+  onCall: string;
+}
+
 export interface SupervisorStats {
   queue: QueueStats;
   dayStatsByAgent: AgentDayStats[];
   pastTarget: LeadSummary[];
   overdueCallbacks: LeadSummary[];
   escalated: LeadSummary[];
+  abandoned: AbandonedClaim[];
+  roster: RosterEntry[];
 }
 
 /** One combined call — the server aggregates today's queue/agent stats plus
@@ -262,6 +314,8 @@ export async function getSupervisorStats(): Promise<SupervisorStats> {
     pastTarget: { id: string; name: string; facility: string; urgent: boolean; created_at: string }[];
     overdueCallbacks: { id: string; name: string; facility: string; next_action_date: string }[];
     escalated: { id: string; name: string; escalated_by: string; escalated_at: string }[];
+    abandoned: AbandonedClaim[];
+    roster: RosterEntry[];
   }>("/api/supervisor/stats");
 
   return {
@@ -270,6 +324,8 @@ export async function getSupervisorStats(): Promise<SupervisorStats> {
     pastTarget: json.pastTarget.map((r) => ({ id: r.id, name: r.name, facility: r.facility, urgent: r.urgent, createdAt: r.created_at })),
     overdueCallbacks: json.overdueCallbacks.map((r) => ({ id: r.id, name: r.name, facility: r.facility, nextActionDate: r.next_action_date })),
     escalated: json.escalated.map((r) => ({ id: r.id, name: r.name, facility: "", escalatedBy: r.escalated_by, escalatedAt: r.escalated_at })),
+    abandoned: json.abandoned ?? [],
+    roster: json.roster ?? [],
   };
 }
 

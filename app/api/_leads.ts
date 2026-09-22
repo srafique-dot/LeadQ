@@ -31,6 +31,10 @@ export interface LeadRow {
   escalated: boolean;
   escalated_by: string;
   escalated_at: string | null;
+  assigned_to: string | null;
+  assigned_at: string | null;
+  claimed_by: string | null;
+  claimed_at: string | null;
   created_at: string;
 }
 
@@ -92,6 +96,10 @@ export async function serializeLead(row: LeadRow) {
     escalated: row.escalated,
     escalatedBy: row.escalated_by,
     escalatedAt: row.escalated_at ?? "",
+    assignedTo: row.assigned_to ?? "",
+    assignedAt: row.assigned_at ?? "",
+    claimedBy: row.claimed_by ?? "",
+    claimedAt: row.claimed_at ?? "",
   };
 }
 

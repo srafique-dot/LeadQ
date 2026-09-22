@@ -25,6 +25,34 @@ export default route({
       return void res.status(200).json({ ok: true });
     }
 
+    if (action === "presence") {
+      const { presence } = body<{ presence: string }>(req);
+      if (!["available", "break", "off"].includes(presence)) {
+        return void res.status(400).json({ error: "bad_presence" });
+      }
+      // Stepping away releases the untouched leads held for this agent, so
+      // the queue doesn't go cold behind someone who has gone home.
+      const { rowCount } = await query(
+        "update accounts set presence = $1, presence_at = now() where employee_id = $2",
+        [presence, id],
+      );
+      if (!rowCount) return void res.status(404).json({ error: "not_found" });
+      if (presence !== "available") {
+        await query(
+          `update leads l
+              set assigned_to = null, assigned_at = null
+            where l.assigned_to = $1
+              and l.claimed_by is null
+              and l.status in ('waiting','trying')
+              and not exists (
+                select 1 from dispositions d where d.lead_id = l.id and d.agent_id = $1
+              )`,
+          [id],
+        );
+      }
+      return void res.status(200).json({ ok: true });
+    }
+
     if (action === "rename") {
       const { name } = body<{ name: string }>(req);
       const trimmed = name?.trim();

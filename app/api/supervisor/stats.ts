@@ -1,11 +1,12 @@
 import { query } from "../_db.js";
 import { route } from "../_http.js";
+import { ABANDONED_AFTER_MIN } from "../_routing.js";
 
 const TARGET_MIN = 5;
 
 export default route({
   GET: async (_req, res) => {
-    const [waiting, dayStats, pastTarget, overdueCallbacks, escalated] = await Promise.all([
+    const [waiting, dayStats, pastTarget, overdueCallbacks, escalated, abandoned, roster] = await Promise.all([
       query<{ count: string; oldest_min: number | null }>(
         "select count(*)::text as count, extract(epoch from (now() - min(created_at)))/60 as oldest_min from leads where status = 'waiting'",
       ),
@@ -30,6 +31,31 @@ export default route({
       ),
       query<{ id: string; name: string; escalated_by: string; escalated_at: string }>(
         "select id, name, escalated_by, escalated_at from leads where escalated = true order by escalated_at desc",
+      ),
+      // Claimed, but no outcome logged since — someone opened the lead and
+      // walked away from it. Surfaced before the claim self-expires so a
+      // supervisor can step in rather than just waiting it out.
+      query<{ id: string; name: string; claimed_by: string; claimed_by_name: string | null; held_min: number }>(
+        `select l.id, l.name, l.claimed_by, a.name as claimed_by_name,
+                extract(epoch from (now() - l.claimed_at))/60 as held_min
+           from leads l
+           left join accounts a on a.employee_id = l.claimed_by
+          where l.claimed_by is not null
+            and l.claimed_at < now() - ($1 || ' minutes')::interval
+          order by l.claimed_at asc`,
+        [ABANDONED_AFTER_MIN],
+      ),
+      // Who is on the floor, and how much work is sitting with each of them.
+      query<{ employee_id: string; name: string; presence: string; assigned: string; on_call: string | null }>(
+        `select a.employee_id, a.name, a.presence,
+                count(l.id) filter (where l.status in ('waiting','trying'))::text as assigned,
+                max(c.name) as on_call
+           from accounts a
+           left join leads l on l.assigned_to = a.employee_id
+           left join leads c on c.claimed_by = a.employee_id
+          where a.role = 'agent' and a.active
+          group by a.employee_id, a.name, a.presence
+          order by a.name`,
       ),
     ]);
 
@@ -56,6 +82,20 @@ export default route({
       pastTarget: pastTarget.rows,
       overdueCallbacks: overdueCallbacks.rows,
       escalated: escalated.rows,
+      abandoned: abandoned.rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        claimedBy: r.claimed_by,
+        claimedByName: r.claimed_by_name ?? r.claimed_by,
+        heldMin: Math.floor(r.held_min),
+      })),
+      roster: roster.rows.map((r) => ({
+        agentId: r.employee_id,
+        agentName: r.name,
+        presence: r.presence,
+        assigned: Number(r.assigned),
+        onCall: r.on_call ?? "",
+      })),
     });
   },
 });

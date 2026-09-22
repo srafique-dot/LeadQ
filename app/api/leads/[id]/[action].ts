@@ -1,6 +1,7 @@
 import { query } from "../../_db.js";
 import { route, body } from "../../_http.js";
 import { serializeLead, type LeadRow } from "../../_leads.js";
+import { claimLead, claimHolder } from "../../_routing.js";
 
 const TERMINAL = new Set(["appointment_purchased", "appointment_booked", "ni_price", "ni_distance", "ni_elsewhere", "wrong_person", "duplicate"]);
 const WIN = new Set(["appointment_purchased", "appointment_booked"]);
@@ -38,6 +39,12 @@ interface EscalateBody {
   agentId: string;
   agentName: string;
 }
+interface ClaimBody {
+  agentId: string;
+}
+interface ReassignBody {
+  agentId: string | null;
+}
 
 /** All single-lead actions (merge, disposition, escalate, unescalate, split)
  * share one function — Vercel Hobby caps a deployment at 12 serverless
@@ -48,6 +55,52 @@ export default route({
     const action = String(req.query.action);
 
     switch (action) {
+      case "claim": {
+        const { agentId } = body<ClaimBody>(req);
+        const claimed = await claimLead(id, agentId);
+        if (!claimed) {
+          const holder = await claimHolder(id);
+          return void res.status(409).json({
+            error: "already_claimed",
+            holderName: holder?.name ?? "another agent",
+          });
+        }
+        return void res.status(200).json(await serializeLead(claimed));
+      }
+
+      case "release": {
+        const { agentId } = body<ClaimBody>(req);
+        // Scoped to this agent so a late release can't knock someone else off.
+        const { rows } = await query<LeadRow>(
+          "update leads set claimed_by = null, claimed_at = null where id = $1 and claimed_by = $2 returning *",
+          [id, agentId],
+        );
+        if (!rows[0]) {
+          const { rows: current } = await query<LeadRow>("select * from leads where id = $1", [id]);
+          if (!current[0]) return void res.status(404).json({ error: "not_found" });
+          return void res.status(200).json(await serializeLead(current[0]));
+        }
+        return void res.status(200).json(await serializeLead(rows[0]));
+      }
+
+      case "reassign": {
+        const { agentId } = body<ReassignBody>(req);
+        // Supervisor override: also drops any claim, so a lead stuck behind
+        // someone who walked away can be moved without waiting it out.
+        const { rows } = await query<LeadRow>(
+          `update leads
+              set assigned_to = $1,
+                  assigned_at = case when $1 is null then null else now() end,
+                  claimed_by = null,
+                  claimed_at = null
+            where id = $2
+            returning *`,
+          [agentId, id],
+        );
+        if (!rows[0]) return void res.status(404).json({ error: "not_found" });
+        return void res.status(200).json(await serializeLead(rows[0]));
+      }
+
       case "merge": {
         const { entry } = body<MergeBody>(req);
         const { rows: existingEntries } = await query<{ count: string }>("select count(*)::text from lead_entries where lead_id = $1", [id]);
@@ -123,12 +176,22 @@ export default route({
           detail = (b.l2 ? L2_LABELS[b.l2] ?? b.l2 : "Open") + " · " + new Date().toLocaleString();
         }
 
+        // Routing after the call. The lead sticks to whoever just spoke to
+        // the caller, so the follow-up goes back to them — unless this was a
+        // loan (they were covering for the assigned agent), in which case it
+        // goes home to its owner rather than being quietly stolen. The claim
+        // always clears: the call is over.
+        const wasLoan = !!lead.assigned_to && lead.assigned_to !== b.agentId;
+        const nextAssignee = wasLoan ? lead.assigned_to : b.agentId;
+
         const { rows } = await query<LeadRow>(
           `update leads set status = $1, attempt = $2, detail = $3, next_action_date = $4,
              erp_ref_type = case when $5 <> '' then $5 else erp_ref_type end,
-             erp_ref_value = case when $6 <> '' then $6 else erp_ref_value end
+             erp_ref_value = case when $6 <> '' then $6 else erp_ref_value end,
+             assigned_to = $8, assigned_at = now(),
+             claimed_by = null, claimed_at = null
            where id = $7 returning *`,
-          [status, attempt, detail, nextActionDate, b.erpRefType, b.erpRefValue, id],
+          [status, attempt, detail, nextActionDate, b.erpRefType, b.erpRefValue, id, nextAssignee],
         );
         return void res.status(200).json(await serializeLead(rows[0]));
       }

@@ -1,4 +1,4 @@
-import type { Account, Invite, Role } from "./types";
+import type { Account, Invite, Presence, Role } from "./types";
 
 /**
  * Real backend calls. Every function here mirrors the shape the mock had in
@@ -235,6 +235,17 @@ export async function setAccountActive(employeeId: string, active: boolean): Pro
     body: JSON.stringify({ active }),
   });
   if (!res.ok) throw new Error("Could not update access");
+}
+
+/** Agents declare their own availability. Going to break or signing off also
+ * hands back any leads routed to them that they never actually called. */
+export async function setPresence(employeeId: string, presence: Presence): Promise<void> {
+  const res = await fetch(`/api/accounts/${employeeId}/presence`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ presence }),
+  });
+  if (!res.ok) throw new Error("Could not update availability");
 }
 
 /** Employee ID stays permanent — only the display name changes. Works on

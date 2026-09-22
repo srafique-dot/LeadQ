@@ -27,6 +27,11 @@ create table accounts (
   calling_number text not null default '',
   active boolean not null default true,
   facility text not null default '',
+  -- Declared by the agent (Available / Break / signed off), never inferred
+  -- from activity. Routing only hands new work to 'available' agents, and
+  -- only reclaims another agent's untouched leads when they are not.
+  presence text not null default 'off' check (presence in ('available', 'break', 'off')),
+  presence_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -56,16 +61,18 @@ create table cohorts (
 
 -- Superadmin-managed list of "how did this lead come in" values. Free text
 -- (not an enum) so a superadmin can add one without a schema change.
+-- created_by is null for the three the system ships with: nobody added them,
+-- and on a fresh database there is no account to attribute them to yet.
 create table channels (
   name text primary key,
   active boolean not null default true,
-  created_by text not null references accounts(employee_id),
+  created_by text references accounts(employee_id),
   created_at timestamptz not null default now()
 );
-insert into channels (name, active, created_by) values
-  ('Manual entry', true, (select employee_id from accounts order by created_at limit 1)),
-  ('Website LP', true, (select employee_id from accounts order by created_at limit 1)),
-  ('Door2Door Campaign', true, (select employee_id from accounts order by created_at limit 1));
+insert into channels (name, active) values
+  ('Manual entry', true),
+  ('Website LP', true),
+  ('Door2Door Campaign', true);
 
 create table leads (
   id text primary key default 'L-' || upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6)),
@@ -99,11 +106,26 @@ create table leads (
   escalated boolean not null default false,
   escalated_by text not null default '',
   escalated_at timestamptz,
+  -- Routing. assigned_to is the agent this lead belongs to: set when it is
+  -- handed out, and made sticky to whoever last logged an outcome on it so
+  -- follow-ups go back to the person who already spoke to them. claimed_by
+  -- is the short-lived "I am on this call right now" lock, taken atomically
+  -- so two agents can never dial the same number; it expires on its own
+  -- (see CLAIM_TTL_MIN) so a lead is never stuck behind someone who walked
+  -- away. A claim held by someone other than assigned_to is a one-time
+  -- loan — the disposition hands the lead back to its owner, not the
+  -- borrower.
+  assigned_to text references accounts(employee_id),
+  assigned_at timestamptz,
+  claimed_by text references accounts(employee_id),
+  claimed_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index leads_digits_idx on leads (digits);
 create index leads_status_idx on leads (status) where status in ('waiting', 'trying');
 create index leads_owner_idx on leads (owner_id);
+create index leads_assigned_idx on leads (assigned_to) where status in ('waiting', 'trying');
+create index leads_claimed_idx on leads (claimed_by) where claimed_by is not null;
 
 -- A phone number's earlier enquiries, once merged into one lead card.
 create table lead_entries (

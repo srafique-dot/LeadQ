@@ -1,6 +1,7 @@
 import { query } from "../_db.js";
 import { route, body } from "../_http.js";
 import { serializeLead, digitsOf, type LeadRow } from "../_leads.js";
+import { releaseStaleAssignments, topUpWorkingSet, assignedSql, borrowableSql } from "../_routing.js";
 
 interface NewLeadBody {
   name: string;
@@ -51,13 +52,28 @@ interface ImportBody {
  * on which query param is present; POST dispatches on ?action=. */
 export default route({
   GET: async (req, res) => {
-    const { ownerId, queue, phone } = req.query;
+    const { ownerId, queue, phone, agentId } = req.query;
 
     if (typeof phone === "string") {
       const digits = digitsOf(phone);
       if (digits.length < 7) return void res.status(200).json(null);
       const { rows } = await query<LeadRow>("select * from leads where digits = $1 limit 1", [digits]);
       return void res.status(200).json(rows[0] ? await serializeLead(rows[0]) : null);
+    }
+
+    // An agent's own queue: their assigned working set, topped up from the
+    // pool, plus anything overdue they're allowed to cover for an absent
+    // colleague. Without agentId this stays the old global open-lead list,
+    // which the supervisor screens still use.
+    if (queue === "1" && typeof agentId === "string") {
+      await releaseStaleAssignments();
+      await topUpWorkingSet(agentId);
+      const [mine, borrowable] = await Promise.all([
+        query<LeadRow>(assignedSql(), [agentId]),
+        query<LeadRow>(borrowableSql(), [agentId]),
+      ]);
+      const rows = [...mine.rows, ...borrowable.rows];
+      return void res.status(200).json(await Promise.all(rows.map(serializeLead)));
     }
 
     let sql = "select * from leads";

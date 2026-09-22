@@ -4,12 +4,12 @@ import { route, body } from "../_http.js";
 interface ChannelRow {
   name: string;
   active: boolean;
-  created_by: string;
+  created_by: string | null;
   created_at: string;
 }
 
 function serialize(c: ChannelRow) {
-  return { name: c.name, active: c.active, createdBy: c.created_by, createdAt: c.created_at };
+  return { name: c.name, active: c.active, createdBy: c.created_by ?? "", createdAt: c.created_at };
 }
 
 interface NewChannelBody {

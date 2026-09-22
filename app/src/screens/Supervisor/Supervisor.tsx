@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import {
   getSupervisorStats,
   unescalateLead,
+  reassignLead,
   getAllLeads,
   getCdrMonth,
   saveCdrMonth,
@@ -101,6 +102,13 @@ export function Supervisor() {
   const pastTarget = (stats?.pastTarget ?? []).filter((l) => !dismissed.includes("target:" + l.id));
   const overdueCallbacks = (stats?.overdueCallbacks ?? []).filter((l) => !dismissed.includes("cb:" + l.id));
   const escalated = stats?.escalated ?? [];
+  const abandoned = stats?.abandoned ?? [];
+  const roster = stats?.roster ?? [];
+  const PRESENCE_LABEL: Record<string, { text: string; color: string }> = {
+    available: { text: "Available", color: "var(--success)" },
+    break: { text: "On break", color: "var(--warning)" },
+    off: { text: "Signed off", color: "var(--ink-faint)" },
+  };
 
   const openLeads = allLeads.filter((l) => l.status === "waiting" || l.status === "trying");
   const leadTypeBreakdown = LEAD_TYPES.map((t) => ({
@@ -351,7 +359,30 @@ export function Supervisor() {
                     </button>
                   </div>
                 ))}
-                {pastTarget.length === 0 && overdueCallbacks.length === 0 && (
+                {abandoned.map((a) => (
+                  <div key={a.id} className={styles.alertRow}>
+                    <div className={styles.alertTop}>
+                      <span className={styles.alertDot} style={{ background: "var(--danger)" }} />
+                      <span className={styles.alertTitle}>{a.name}</span>
+                      <span className={styles.alertAge}>{a.heldMin}m</span>
+                    </div>
+                    <div className={styles.alertDetail}>
+                      {a.claimedByName} opened this and hasn't logged an outcome — they may have left mid-call.
+                    </div>
+                    <button
+                      type="button"
+                      className={styles.alertBtn}
+                      onClick={async () => {
+                        await reassignLead(a.id, null);
+                        setFlash(`${a.name} released back to the floor.`);
+                        refreshLive();
+                      }}
+                    >
+                      Release back to the floor
+                    </button>
+                  </div>
+                ))}
+                {pastTarget.length === 0 && overdueCallbacks.length === 0 && abandoned.length === 0 && (
                   <div className={styles.emptyRow}>Nothing breaching. The queue is inside target.</div>
                 )}
                 <div className={styles.footnote}>
@@ -384,6 +415,33 @@ export function Supervisor() {
                 ))}
                 {escalated.length === 0 && <div className={styles.emptyRow}>Nothing escalated right now.</div>}
               </div>
+            </div>
+
+            <div className={styles.card} style={{ marginTop: 14 }}>
+              <div className={styles.cardHead}>
+                <span className={styles.cardHeadTitle}>Who's on the floor</span>
+                <span style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--ink-faint)" }}>
+                  Agents set this themselves — it isn't guessed from activity
+                </span>
+              </div>
+              <div className={styles.tableHeadRow}>
+                <div style={{ flex: "1 1 200px" }} className={styles.tableHeadCell}>AGENT</div>
+                <div style={{ width: 120 }} className={styles.tableHeadCell}>STATUS</div>
+                <div style={{ width: 100, textAlign: "right" }} className={styles.tableHeadCell}>HOLDING</div>
+                <div style={{ width: 160 }} className={styles.tableHeadCell}>ON A CALL WITH</div>
+              </div>
+              {roster.map((r) => {
+                const p = PRESENCE_LABEL[r.presence] ?? PRESENCE_LABEL.off;
+                return (
+                  <div key={r.agentId} className={styles.tableRow}>
+                    <div style={{ flex: "1 1 200px" }} className={styles.tableName}>{r.agentName}</div>
+                    <div style={{ width: 120, color: p.color, textAlign: "left" }} className={styles.tableCell}>{p.text}</div>
+                    <div style={{ width: 100 }} className={styles.tableCell}>{r.assigned}</div>
+                    <div style={{ width: 160, textAlign: "left" }} className={styles.tableCell}>{r.onCall || "—"}</div>
+                  </div>
+                );
+              })}
+              {roster.length === 0 && <div className={styles.emptyRow}>No agents on the roster yet.</div>}
             </div>
 
             <div className={styles.card} style={{ marginTop: 14 }}>
@@ -421,8 +479,8 @@ export function Supervisor() {
           <div>
             <h1 className={styles.title}>Agent queue</h1>
             <div className={styles.subhead}>
-              Every open lead, in the order an agent would actually pull it — urgent first, then oldest first. Nothing here is assigned to a
-              specific agent yet; any logged-in agent can pick up any row.
+              Every open lead, in the order an agent would actually pull it — urgent first, then oldest first. Leads are routed to an agent
+              and stay with whoever last spoke to the caller; reassign here to move one.
             </div>
 
             <div style={{ display: "flex", gap: 9, flexWrap: "wrap", margin: "14px 0" }}>
@@ -448,10 +506,10 @@ export function Supervisor() {
             <div className={styles.card}>
               <div className={styles.tableHeadRow}>
                 <div style={{ flex: "1 1 220px" }} className={styles.tableHeadCell}>LEAD</div>
-                <div style={{ width: 140 }} className={styles.tableHeadCell}>TYPE</div>
-                <div style={{ width: 140 }} className={styles.tableHeadCell}>FACILITY</div>
+                <div style={{ width: 130 }} className={styles.tableHeadCell}>TYPE</div>
                 <div style={{ width: 100 }} className={styles.tableHeadCell}>STATUS</div>
-                <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>AGE</div>
+                <div style={{ width: 190 }} className={styles.tableHeadCell}>ROUTED TO</div>
+                <div style={{ width: 70, textAlign: "right" }} className={styles.tableHeadCell}>AGE</div>
               </div>
               {queueRows.map((l) => (
                 <div key={l.id} className={styles.tableRow}>
@@ -464,10 +522,34 @@ export function Supervisor() {
                       <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>{l.phone}</div>
                     </div>
                   </div>
-                  <div style={{ width: 140 }} className={styles.tableCell}>{leadTypeLabel(l.leadType)}</div>
-                  <div style={{ width: 140 }} className={styles.tableCell}>{l.facility || "—"}</div>
-                  <div style={{ width: 100 }} className={styles.tableCell}>{l.status === "waiting" ? "Waiting" : "Being called"}</div>
-                  <div style={{ width: 80, textAlign: "right", color: slaColor(Date.now() - Date.parse(l.createdAt)) }} className={styles.tableCell}>
+                  <div style={{ width: 130 }} className={styles.tableCell}>{leadTypeLabel(l.leadType)}</div>
+                  <div style={{ width: 100 }} className={styles.tableCell}>
+                    {l.claimedBy ? "On a call" : l.status === "waiting" ? "Waiting" : "Being called"}
+                  </div>
+                  <div style={{ width: 190 }}>
+                    <select
+                      value={l.assignedTo || ""}
+                      onChange={async (e) => {
+                        await reassignLead(l.id, e.target.value || null);
+                        setFlash(
+                          e.target.value
+                            ? `${l.name} reassigned to ${accounts.find((a) => a.employeeId === e.target.value)?.name ?? e.target.value}.`
+                            : `${l.name} returned to the floor.`,
+                        );
+                        refreshLive();
+                      }}
+                      style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid var(--border-input)", background: "var(--surface)", fontSize: 13 }}
+                    >
+                      <option value="">Unassigned — on the floor</option>
+                      {agents.map((a) => (
+                        <option key={a.employeeId} value={a.employeeId}>
+                          {a.name}
+                          {a.presence === "available" ? "" : a.presence === "break" ? " (on break)" : " (signed off)"}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ width: 70, textAlign: "right", color: slaColor(Date.now() - Date.parse(l.createdAt)) }} className={styles.tableCell}>
                     {ageLabel(Date.now() - Date.parse(l.createdAt))}
                   </div>
                 </div>

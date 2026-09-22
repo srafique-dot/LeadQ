@@ -1,5 +1,9 @@
 export type Role = "requester" | "agent" | "admin" | "superadmin";
 
+/** Declared by the agent, never inferred from activity — the app has no way
+ * to see whether someone is actually on a call. */
+export type Presence = "available" | "break" | "off";
+
 export interface Account {
   employeeId: string;
   name: string;
@@ -12,6 +16,7 @@ export interface Account {
   callingNumber: string;
   active: boolean;
   facility: string;
+  presence: Presence;
 }
 
 /** A superadmin-issued invite: role/facility/calling number are fixed by
@@ -119,6 +124,14 @@ export interface Lead {
   escalated: boolean;
   escalatedBy: string;
   escalatedAt: string;
+  /** The agent this lead is routed to. Sticky to whoever last logged an
+   * outcome, so follow-ups go back to the person who already spoke to them. */
+  assignedTo: string;
+  assignedAt: string;
+  /** Short-lived "on this call right now" lock. Held by someone other than
+   * assignedTo means they're covering it as a one-time loan. */
+  claimedBy: string;
+  claimedAt: string;
 }
 
 export interface NewLeadInput {

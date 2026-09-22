@@ -9,13 +9,17 @@ import {
   serviceLine,
   leadTypeLabel,
   getCohortInstructions,
+  claimLead,
+  releaseLead,
+  LeadClaimedError,
   LEVEL1,
   LEVEL2,
   QUICK_NOTES,
   FAILED,
   MAX_ATTEMPTS,
 } from "../../api/leads";
-import type { Lead, Level1Code, Level2Code } from "../../api/types";
+import { setPresence } from "../../api/auth";
+import type { Lead, Level1Code, Level2Code, Presence } from "../../api/types";
 import { cohortColor } from "../../lib/cohortColor";
 import { AddLeadModal } from "../Requester/components/AddLeadModal";
 import { SearchModal } from "./components/SearchModal";
@@ -62,7 +66,8 @@ export function Agent() {
   const [smsSent, setSmsSent] = useState(false);
   const [copied, setCopied] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const [presence, setPresenceState] = useState<Presence>("available");
+  const [claimNotice, setClaimNotice] = useState("");
   const [warnAck, setWarnAck] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -100,15 +105,61 @@ export function Agent() {
     setCohortNoteOpen(true);
   }
 
+  // Signing in puts the agent on the floor; routing only hands work to
+  // agents who are marked available.
   useEffect(() => {
-    if (user) refreshQueue();
+    if (!user) return;
+    setPresence(user.employeeId, "available")
+      .catch(() => undefined)
+      .then(() => refreshQueue());
   }, [user?.employeeId]);
 
   if (!user) return null;
   const currentUser = user;
 
   function refreshQueue() {
-    getAgentQueue().then(setQueue);
+    getAgentQueue(currentUser.employeeId).then(setQueue);
+  }
+
+  async function changePresence(next: Presence) {
+    setPresenceState(next);
+    if (next !== "available" && currentId) await releaseCurrent();
+    await setPresence(currentUser.employeeId, next).catch(() => undefined);
+    refreshQueue();
+  }
+
+  async function releaseCurrent() {
+    if (!currentId) return;
+    await releaseLead(currentId, currentUser.employeeId).catch(() => undefined);
+  }
+
+  /** Selecting a lead is the same thing as starting to work it, so the claim
+   * is taken here rather than behind an extra button — agents are already
+   * juggling the ERP and the dialler. If someone else got there first the
+   * server refuses and we say who has it. */
+  async function openLead(id: string) {
+    if (id === currentId) return;
+    const previous = currentId;
+    try {
+      await claimLead(id, currentUser.employeeId);
+    } catch (err) {
+      if (err instanceof LeadClaimedError) {
+        setClaimNotice(`${err.holderName} is already on that lead — picking it back up isn't possible until they finish.`);
+        refreshQueue();
+        return;
+      }
+      throw err;
+    }
+    if (previous) await releaseLead(previous, currentUser.employeeId).catch(() => undefined);
+    setClaimNotice("");
+    setCurrentId(id);
+    resetDispositionState();
+  }
+
+  async function handleSignOut() {
+    await releaseCurrent();
+    await setPresence(currentUser.employeeId, "off").catch(() => undefined);
+    signOut();
   }
 
   function resetDispositionState() {
@@ -212,7 +263,7 @@ export function Agent() {
           <div style={{ marginLeft: "auto", textAlign: "right", minWidth: 0 }}>
             <div className={styles.agentName}>{currentUser.name}</div>
             <div className={styles.clock}>{pad(hours)}:{pad(clockDate.getMinutes())}</div>
-            <button type="button" className={styles.signOutBtn} onClick={signOut}>
+            <button type="button" className={styles.signOutBtn} onClick={handleSignOut}>
               Sign out
             </button>
           </div>
@@ -232,10 +283,13 @@ export function Agent() {
           <button
             type="button"
             className={styles.pauseBtn}
-            style={{ background: paused ? "#FDF0CE" : "var(--surface-subtle)", color: paused ? "#7A4E06" : "var(--ink-muted)" }}
-            onClick={() => setPaused((v) => !v)}
+            style={{
+              background: presence === "break" ? "#FDF0CE" : "var(--surface-subtle)",
+              color: presence === "break" ? "#7A4E06" : "var(--ink-muted)",
+            }}
+            onClick={() => changePresence(presence === "break" ? "available" : "break")}
           >
-            {paused ? "Resume" : "Pause"}
+            {presence === "break" ? "Back from break" : "On break"}
           </button>
         </div>
 
@@ -253,10 +307,7 @@ export function Agent() {
                 borderLeftColor: slaColor(ageMinutes(row, now)),
                 background: lead && row.id === lead.id ? "var(--primary-tint)" : "transparent",
               }}
-              onClick={() => {
-                setCurrentId(row.id);
-                resetDispositionState();
-              }}
+              onClick={() => openLead(row.id)}
             >
               <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                 <div className={styles.queueRowName}>
@@ -292,10 +343,7 @@ export function Agent() {
               type="button"
               className={styles.queueRow}
               style={{ background: lead && row.id === lead.id ? "var(--primary-tint)" : "transparent" }}
-              onClick={() => {
-                setCurrentId(row.id);
-                resetDispositionState();
-              }}
+              onClick={() => openLead(row.id)}
             >
               <div style={{ minWidth: 0, flex: "1 1 auto" }}>
                 <div className={styles.queueRowNameText} style={{ color: "var(--ink-secondary)" }}>
@@ -370,12 +418,30 @@ export function Agent() {
             </div>
 
             <div className={styles.body}>
-              {paused ? (
+              {claimNotice && (
+                <div
+                  className={styles.card}
+                  style={{ borderColor: "var(--warning)", color: "var(--ink-secondary)", padding: "12px 16px", marginBottom: 12 }}
+                >
+                  {claimNotice}
+                </div>
+              )}
+              {lead.assignedTo && lead.assignedTo !== currentUser.employeeId && (
+                <div
+                  className={styles.card}
+                  style={{ borderColor: "var(--warning)", background: "#FDF9EE", padding: "12px 16px", marginBottom: 12, color: "#7A4E06" }}
+                >
+                  You're covering this one while its agent is away — it goes back to them after you log the outcome.
+                </div>
+              )}
+              {presence === "break" ? (
                 <div className={`${styles.card} ${styles.pausedCard}`}>
-                  <div className={styles.pausedTitle}>Queue paused</div>
-                  <div className={styles.pausedSub}>This lead stays with you. No new leads while you're paused.</div>
-                  <button type="button" className={styles.resumeBtn} onClick={() => setPaused(false)}>
-                    Resume queue
+                  <div className={styles.pausedTitle}>On break</div>
+                  <div className={styles.pausedSub}>
+                    No new leads while you're on break. Anything you hadn't called yet has gone back to the floor.
+                  </div>
+                  <button type="button" className={styles.resumeBtn} onClick={() => changePresence("available")}>
+                    Back from break
                   </button>
                 </div>
               ) : phase === "brief" ? (
