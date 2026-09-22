@@ -136,12 +136,16 @@ export function Agent() {
   const showNextAction = l2 === "callback_later";
   const notesRequired = !!l2 && l2.startsWith("ni_");
 
+  const erpRefRequired = showAppt && !!lead?.patientName;
+
   const blockers: string[] = [];
   if (!l1) blockers.push("Pick what happened on the call.");
   else if (l1 === "connected" && !l2) blockers.push("Pick what they said.");
   else if (notesRequired && note.trim().length < 4) blockers.push("Write a short note — required when they are not interested.");
   else if (l2 === "callback_later" && !nextActionDate) blockers.push("Choose when to call again.");
   else if (smsRequired && !smsSent) blockers.push("Send the SMS first — this is call 3.");
+  else if (erpRefRequired && !erpRef.trim())
+    blockers.push("Write the ERP reference — this booking is for someone else, so it's the only way to match it back to them later.");
 
   const requeued = isFailedPick && !!lead && lead.attempt < MAX_ATTEMPTS;
   const exhausting = isFailedPick && !!lead && lead.attempt >= MAX_ATTEMPTS;
@@ -574,7 +578,11 @@ export function Agent() {
                       <label className={styles.refField}>
                         <span className={styles.refLabel}>
                           {l2 === "appointment_purchased" ? "Invoice number from the ERP" : "Booking ID from the ERP"}{" "}
-                          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-faint)" }}>— optional</span>
+                          {erpRefRequired ? (
+                            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--danger)" }}>— required, booked for someone else</span>
+                          ) : (
+                            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--ink-faint)" }}>— optional</span>
+                          )}
                         </span>
                         <input
                           value={erpRef}

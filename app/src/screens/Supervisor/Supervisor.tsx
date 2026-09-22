@@ -9,6 +9,8 @@ import {
   saveCdrMonth,
   leadTypeLabel,
   LEAD_TYPES,
+  LEVEL1,
+  LEVEL2,
   type CdrRow,
   type CdrMonth,
   type SupervisorStats,
@@ -57,12 +59,16 @@ function parseCdrCsv(text: string): CdrRow[] {
 
 export function Supervisor() {
   const { user, accounts, signOut } = useAuth();
-  const [tab, setTab] = useState<"floor" | "queue" | "month">("floor");
+  const [tab, setTab] = useState<"floor" | "queue" | "all" | "month">("floor");
   const [flash, setFlash] = useState("");
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [monthOffset, setMonthOffset] = useState(0);
   const [queueSearch, setQueueSearch] = useState("");
   const [queueStatusFilter, setQueueStatusFilter] = useState<"all" | "waiting" | "trying">("all");
+  const [allSearch, setAllSearch] = useState("");
+  const [allChannelFilter, setAllChannelFilter] = useState("all");
+  const [allTypeFilter, setAllTypeFilter] = useState("all");
+  const [allStatusFilter, setAllStatusFilter] = useState("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [stats, setStats] = useState<SupervisorStats | null>(null);
@@ -110,6 +116,53 @@ export function Supervisor() {
       return !t || (l.name + l.phone).toLowerCase().includes(t);
     })
     .sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || Date.parse(a.createdAt) - Date.parse(b.createdAt));
+
+  const channelNames = Array.from(new Set(allLeads.map((l) => l.channel).filter(Boolean))).sort();
+  const channelBreakdown = channelNames.map((name) => {
+    const rows = allLeads.filter((l) => l.channel === name);
+    const booked = rows.filter((l) => l.status === "booked").length;
+    const closed = rows.filter((l) => l.status === "closed").length;
+    const open = rows.length - booked - closed;
+    return { name, total: rows.length, booked, closed, open, bookedPct: rows.length ? Math.round((booked / rows.length) * 100) : 0 };
+  });
+
+  const DISPLAY_CAP = 300;
+  const allFilteredLeads = allLeads
+    .filter((l) => allChannelFilter === "all" || l.channel === allChannelFilter)
+    .filter((l) => allTypeFilter === "all" || l.leadType === allTypeFilter)
+    .filter((l) => allStatusFilter === "all" || l.status === allStatusFilter)
+    .filter((l) => {
+      const t = allSearch.trim().toLowerCase();
+      return !t || (l.name + l.phone + l.cohort).toLowerCase().includes(t);
+    })
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  const allDisplayLeads = allFilteredLeads.slice(0, DISPLAY_CAP);
+
+  function exportAllLeadsCsv() {
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = [
+      "Lead ID", "Caller name", "Caller phone", "Patient name (if different)", "Channel", "Cohort", "Facility",
+      "Lead type", "Status", "Latest outcome", "ERP ref type", "ERP ref value", "Created", "Latest disposition",
+      "Requester", "Last agent", "Urgent",
+    ];
+    const rows = allFilteredLeads.map((l) => {
+      const last = l.history[l.history.length - 1];
+      const outcome = last ? (LEVEL2.find((o) => o.code === last.l2)?.label ?? LEVEL1.find((o) => o.code === last.l1)?.label ?? "") : "";
+      return [
+        l.id, l.name, l.phone, l.patientName, l.channel, l.cohort, l.facility,
+        leadTypeLabel(l.leadType), l.status, outcome, l.erpRefType, l.erpRefValue, l.createdAt, last?.when ?? "",
+        `${l.ownerId} ${l.ownerName}`, last?.agentName ?? "", l.urgent ? "yes" : "no",
+      ].map((v) => escape(String(v ?? "")));
+    });
+    const csv = [header.map(escape), ...rows].map((r) => r.join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `leadq-leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const dayRows = agents
     .map((a) => {
@@ -182,7 +235,7 @@ export function Supervisor() {
       </header>
 
       <div className={styles.tabs}>
-        {(["floor", "queue", "month"] as const).map((t) => (
+        {(["floor", "queue", "all", "month"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -190,7 +243,7 @@ export function Supervisor() {
             style={tab === t ? { background: "var(--primary)", color: "#fff", borderColor: "var(--primary)" } : undefined}
             onClick={() => setTab(t)}
           >
-            {t === "floor" ? "Floor view" : t === "queue" ? "Agent queue" : "Monthly report"}
+            {t === "floor" ? "Floor view" : t === "queue" ? "Agent queue" : t === "all" ? "All leads" : "Monthly report"}
           </button>
         ))}
       </div>
@@ -420,6 +473,109 @@ export function Supervisor() {
                 </div>
               ))}
               {queueRows.length === 0 && <div className={styles.emptyRow}>Nothing matches — the queue is empty or the filter is too narrow.</div>}
+            </div>
+          </div>
+        ) : tab === "all" ? (
+          <div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
+              <div>
+                <h1 className={styles.title}>All leads</h1>
+                <div className={styles.subhead}>
+                  Every lead regardless of status, grouped by where it came from. Booking/payment truth lives in the ERP — the reference
+                  columns are pointers into it, not a live sync.
+                </div>
+              </div>
+              <button type="button" className={styles.uploadBtn} style={{ marginLeft: "auto" }} onClick={exportAllLeadsCsv}>
+                Export CSV ({allFilteredLeads.length.toLocaleString()} rows)
+              </button>
+            </div>
+
+            {channelBreakdown.length > 0 && (
+              <div className={styles.card} style={{ marginTop: 14 }}>
+                <div className={styles.cardHead}>
+                  <span className={styles.cardHeadTitle}>By channel</span>
+                </div>
+                <div className={styles.tableHeadRow}>
+                  <div style={{ flex: "1 1 160px" }} className={styles.tableHeadCell}>CHANNEL</div>
+                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>TOTAL</div>
+                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>OPEN</div>
+                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>BOOKED</div>
+                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>CLOSED</div>
+                  <div style={{ width: 90, textAlign: "right" }} className={styles.tableHeadCell}>BOOK %</div>
+                </div>
+                {channelBreakdown.map((c) => (
+                  <div key={c.name} className={styles.tableRow}>
+                    <div style={{ flex: "1 1 160px" }} className={styles.tableName}>{c.name}</div>
+                    <div style={{ width: 80 }} className={styles.tableCell}>{c.total}</div>
+                    <div style={{ width: 80 }} className={styles.tableCell}>{c.open}</div>
+                    <div style={{ width: 80, color: "var(--success)" }} className={styles.tableCell}>{c.booked}</div>
+                    <div style={{ width: 80 }} className={styles.tableCell}>{c.closed}</div>
+                    <div style={{ width: 90, color: c.bookedPct < 20 ? "var(--danger)" : "var(--ink)" }} className={styles.tableCell}>{c.bookedPct}%</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 9, flexWrap: "wrap", margin: "14px 0" }}>
+              <input
+                value={allSearch}
+                onChange={(e) => setAllSearch(e.target.value)}
+                placeholder="Search name, phone or cohort"
+                style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)", fontSize: 14, color: "var(--ink)" }}
+              />
+              <select value={allChannelFilter} onChange={(e) => setAllChannelFilter(e.target.value)} style={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}>
+                <option value="all">All channels</option>
+                {channelNames.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select value={allTypeFilter} onChange={(e) => setAllTypeFilter(e.target.value)} style={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}>
+                <option value="all">All types</option>
+                {LEAD_TYPES.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
+              </select>
+              <select value={allStatusFilter} onChange={(e) => setAllStatusFilter(e.target.value)} style={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}>
+                <option value="all">All statuses</option>
+                <option value="waiting">Waiting</option>
+                <option value="trying">Being called</option>
+                <option value="booked">Booked</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+
+            <div className={styles.card}>
+              <div className={styles.tableHeadRow}>
+                <div style={{ flex: "1 1 200px" }} className={styles.tableHeadCell}>LEAD</div>
+                <div style={{ width: 110 }} className={styles.tableHeadCell}>CHANNEL</div>
+                <div style={{ width: 130 }} className={styles.tableHeadCell}>COHORT</div>
+                <div style={{ width: 120 }} className={styles.tableHeadCell}>TYPE</div>
+                <div style={{ width: 100 }} className={styles.tableHeadCell}>STATUS</div>
+                <div style={{ width: 90 }} className={styles.tableHeadCell}>ERP REF</div>
+              </div>
+              {allDisplayLeads.map((l) => (
+                <div key={l.id} className={styles.tableRow}>
+                  <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                    <div className={styles.tableName}>{l.name}</div>
+                    <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>
+                      {l.phone}
+                      {l.patientName ? ` · for ${l.patientName}` : ""}
+                    </div>
+                  </div>
+                  <div style={{ width: 110 }} className={styles.tableCell}>{l.channel}</div>
+                  <div style={{ width: 130 }} className={styles.tableCell}>{l.cohort || "—"}</div>
+                  <div style={{ width: 120 }} className={styles.tableCell}>{leadTypeLabel(l.leadType)}</div>
+                  <div style={{ width: 100 }} className={styles.tableCell}>
+                    {l.status === "waiting" ? "Waiting" : l.status === "trying" ? "Being called" : l.status === "booked" ? "Booked" : "Closed"}
+                  </div>
+                  <div style={{ width: 90, color: l.erpRefValue ? "var(--ink)" : "var(--ink-faint)" }} className={styles.tableCell}>
+                    {l.erpRefValue || "—"}
+                  </div>
+                </div>
+              ))}
+              {allDisplayLeads.length === 0 && <div className={styles.emptyRow}>Nothing matches this filter.</div>}
+              {allFilteredLeads.length > DISPLAY_CAP && (
+                <div className={styles.footnote} style={{ padding: "10px 16px" }}>
+                  Showing the latest {DISPLAY_CAP} of {allFilteredLeads.length.toLocaleString()} matching leads — narrow the filter or use
+                  Export CSV to get everything.
+                </div>
+              )}
             </div>
           </div>
         ) : (
