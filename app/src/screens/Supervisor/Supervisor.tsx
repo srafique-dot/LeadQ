@@ -7,18 +7,25 @@ import {
   getAllLeads,
   getCdrMonth,
   saveCdrMonth,
+  leadTypeLabel,
   LEAD_TYPES,
   type CdrRow,
   type CdrMonth,
   type SupervisorStats,
 } from "../../api/leads";
 import type { Lead } from "../../api/types";
+import { cohortColor } from "../../lib/cohortColor";
 
 const TARGET_MIN = 5;
 
 function ageLabel(ms: number): string {
   const m = Math.floor(ms / 60000);
   return m < 60 ? m + "m" : Math.floor(m / 60) + "h";
+}
+
+function slaColor(ms: number): string {
+  const m = ms / 60000;
+  return m <= 5 ? "var(--success)" : m <= 20 ? "var(--warning)" : "var(--danger)";
 }
 
 function monthKeyOf(offset: number): { key: string; label: string } {
@@ -50,10 +57,12 @@ function parseCdrCsv(text: string): CdrRow[] {
 
 export function Supervisor() {
   const { user, accounts, signOut } = useAuth();
-  const [tab, setTab] = useState<"live" | "month">("live");
+  const [tab, setTab] = useState<"floor" | "queue" | "month">("floor");
   const [flash, setFlash] = useState("");
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [monthOffset, setMonthOffset] = useState(0);
+  const [queueSearch, setQueueSearch] = useState("");
+  const [queueStatusFilter, setQueueStatusFilter] = useState<"all" | "waiting" | "trying">("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [stats, setStats] = useState<SupervisorStats | null>(null);
@@ -92,6 +101,15 @@ export function Supervisor() {
     ...t,
     count: openLeads.filter((l) => l.leadType === t.code).length,
   })).filter((t) => t.count > 0);
+
+  // Same ordering agents actually pull from: urgent first, then oldest first.
+  const queueRows = openLeads
+    .filter((l) => queueStatusFilter === "all" || l.status === queueStatusFilter)
+    .filter((l) => {
+      const t = queueSearch.trim().toLowerCase();
+      return !t || (l.name + l.phone).toLowerCase().includes(t);
+    })
+    .sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || Date.parse(a.createdAt) - Date.parse(b.createdAt));
 
   const dayRows = agents
     .map((a) => {
@@ -164,7 +182,7 @@ export function Supervisor() {
       </header>
 
       <div className={styles.tabs}>
-        {(["live", "month"] as const).map((t) => (
+        {(["floor", "queue", "month"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -172,7 +190,7 @@ export function Supervisor() {
             style={tab === t ? { background: "var(--primary)", color: "#fff", borderColor: "var(--primary)" } : undefined}
             onClick={() => setTab(t)}
           >
-            {t === "live" ? "Live floor" : "Monthly report"}
+            {t === "floor" ? "Floor view" : t === "queue" ? "Agent queue" : "Monthly report"}
           </button>
         ))}
       </div>
@@ -180,7 +198,7 @@ export function Supervisor() {
       <div className={styles.main}>
         {flash && <div className={styles.flash}>{flash}</div>}
 
-        {tab === "live" ? (
+        {tab === "floor" ? (
           <div>
             <div style={{ display: "flex", alignItems: "center" }}>
               <h1 className={styles.title}>The floor right now</h1>
@@ -344,6 +362,64 @@ export function Supervisor() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        ) : tab === "queue" ? (
+          <div>
+            <h1 className={styles.title}>Agent queue</h1>
+            <div className={styles.subhead}>
+              Every open lead, in the order an agent would actually pull it — urgent first, then oldest first. Nothing here is assigned to a
+              specific agent yet; any logged-in agent can pick up any row.
+            </div>
+
+            <div style={{ display: "flex", gap: 9, flexWrap: "wrap", margin: "14px 0" }}>
+              <input
+                value={queueSearch}
+                onChange={(e) => setQueueSearch(e.target.value)}
+                placeholder="Search name or phone"
+                style={{ flex: "1 1 240px", padding: "9px 12px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)", fontSize: 14, color: "var(--ink)" }}
+              />
+              {(["all", "waiting", "trying"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={styles.tabBtn}
+                  style={queueStatusFilter === s ? { background: "var(--primary)", color: "#fff", borderColor: "var(--primary)" } : undefined}
+                  onClick={() => setQueueStatusFilter(s)}
+                >
+                  {s === "all" ? "All" : s === "waiting" ? "Waiting" : "Being called"}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.card}>
+              <div className={styles.tableHeadRow}>
+                <div style={{ flex: "1 1 220px" }} className={styles.tableHeadCell}>LEAD</div>
+                <div style={{ width: 140 }} className={styles.tableHeadCell}>TYPE</div>
+                <div style={{ width: 140 }} className={styles.tableHeadCell}>FACILITY</div>
+                <div style={{ width: 100 }} className={styles.tableHeadCell}>STATUS</div>
+                <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>AGE</div>
+              </div>
+              {queueRows.map((l) => (
+                <div key={l.id} className={styles.tableRow}>
+                  <div style={{ flex: "1 1 220px", minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+                    {l.cohort && <span style={{ width: 7, height: 7, borderRadius: "50%", flex: "0 0 auto", background: cohortColor(l.cohort).fg }} />}
+                    <div style={{ minWidth: 0 }}>
+                      <div className={styles.tableName}>
+                        {l.name} {l.urgent && <span style={{ color: "var(--danger)", fontSize: 12, fontWeight: 700 }}>URGENT</span>}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "var(--ink-faint)" }}>{l.phone}</div>
+                    </div>
+                  </div>
+                  <div style={{ width: 140 }} className={styles.tableCell}>{leadTypeLabel(l.leadType)}</div>
+                  <div style={{ width: 140 }} className={styles.tableCell}>{l.facility || "—"}</div>
+                  <div style={{ width: 100 }} className={styles.tableCell}>{l.status === "waiting" ? "Waiting" : "Being called"}</div>
+                  <div style={{ width: 80, textAlign: "right", color: slaColor(Date.now() - Date.parse(l.createdAt)) }} className={styles.tableCell}>
+                    {ageLabel(Date.now() - Date.parse(l.createdAt))}
+                  </div>
+                </div>
+              ))}
+              {queueRows.length === 0 && <div className={styles.emptyRow}>Nothing matches — the queue is empty or the filter is too narrow.</div>}
             </div>
           </div>
         ) : (
