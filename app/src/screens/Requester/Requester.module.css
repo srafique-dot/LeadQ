@@ -352,8 +352,9 @@
   }
 }
 .modalCard.narrowFixed {
-  max-width: 480px;
-  padding: 24px;
+  max-width: 640px;
+  padding: 28px 32px;
+  overflow-y: auto;
 }
 
 .modalHeader {
