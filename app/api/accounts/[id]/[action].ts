@@ -91,6 +91,18 @@ export default route({
       return void res.status(200).json({ ok: true });
     }
 
+    if (action === "set-default-channel") {
+      // Blank clears it — the person goes back to picking a channel on
+      // every lead, same as before this existed.
+      const { defaultChannel } = body<{ defaultChannel: string }>(req);
+      const { rowCount } = await query("update accounts set default_channel = $1 where employee_id = $2", [
+        (defaultChannel ?? "").trim(),
+        id,
+      ]);
+      if (!rowCount) return void res.status(404).json({ error: "not_found" });
+      return void res.status(200).json({ ok: true });
+    }
+
     res.status(404).json({ error: "unknown_action" });
   },
 });

@@ -15,6 +15,7 @@ export interface AccountRow {
   active: boolean;
   facility: string;
   presence?: string | null;
+  default_channel?: string | null;
 }
 
 export function serializeAccount(a: AccountRow) {
@@ -29,5 +30,6 @@ export function serializeAccount(a: AccountRow) {
     active: a.active,
     facility: a.facility,
     presence: a.presence ?? "off",
+    defaultChannel: a.default_channel ?? "",
   };
 }

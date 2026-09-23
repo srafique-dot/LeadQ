@@ -17,6 +17,10 @@ export interface Account {
   active: boolean;
   facility: string;
   presence: Presence;
+  /** A requester's usual lead source — pre-fills their Add-lead form.
+   * Empty means they pick a channel on every lead, same as before this
+   * existed. Meaningless for non-requester roles. */
+  defaultChannel: string;
 }
 
 /** A superadmin-issued invite: role/facility/calling number are fixed by
@@ -27,6 +31,7 @@ export interface Invite {
   roleLabel: string;
   facility: string;
   callingNumber: string;
+  defaultChannel: string;
   createdBy: string;
   createdAt: string;
   usedAt: string;

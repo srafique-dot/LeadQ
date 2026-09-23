@@ -171,6 +171,8 @@ export interface NewInviteInput {
   role: Role;
   facility: string;
   callingNumber: string;
+  /** Only meaningful for a requester invite — pre-fills their Add-lead form. */
+  defaultChannel?: string;
 }
 
 /** Superadmin fixes role/facility/calling-number up front; the invitee fills
@@ -281,6 +283,16 @@ export async function renameAccount(employeeId: string, newName: string): Promis
     body: JSON.stringify({ name: newName }),
   });
   if (!res.ok) throw new Error("Could not rename account");
+}
+
+/** Blank clears it — they go back to picking a channel on every lead. */
+export async function setDefaultChannel(employeeId: string, defaultChannel: string): Promise<void> {
+  const res = await fetch(`/api/accounts/${employeeId}/set-default-channel`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ defaultChannel }),
+  });
+  if (!res.ok) throw new Error("Could not update the default channel");
 }
 
 export function landingPathFor(role: Role): string {

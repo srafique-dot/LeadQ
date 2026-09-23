@@ -27,6 +27,11 @@ create table accounts (
   calling_number text not null default '',
   active boolean not null default true,
   facility text not null default '',
+  -- A requester's usual lead source, pre-filled on their Add-lead form so
+  -- they don't re-pick it on every single lead. Free text, like leads.channel
+  -- and channels.name — not an enum, so a superadmin adding a channel never
+  -- needs a schema change. Empty means "no default, pick every time".
+  default_channel text not null default '',
   -- Declared by the agent (Available / Break / signed off), never inferred
   -- from activity. Routing only hands new work to 'available' agents, and
   -- only reclaims another agent's untouched leads when they are not.
@@ -49,6 +54,7 @@ create table invites (
   role role not null,
   facility text not null default '',
   calling_number text not null default '',
+  default_channel text not null default '',
   created_by text not null references accounts(employee_id),
   created_at timestamptz not null default now(),
   used_at timestamptz,

@@ -138,7 +138,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [preferredTime, setPreferredTime] = useState("");
   const [email, setEmail] = useState("");
   const [sources, setSources] = useState<string[]>(FALLBACK_SOURCES);
-  const [source, setSource] = useState(FALLBACK_SOURCES[0]);
+  const [source, setSource] = useState(currentUser.defaultChannel || FALLBACK_SOURCES[0]);
   const [leadType, setLeadType] = useState<LeadType>(LEAD_TYPES[0].value);
   const [urgent, setUrgent] = useState(false);
   const [urgentReason, setUrgentReason] = useState("");
@@ -300,6 +300,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
                 How did this lead come in? / <Bn>এই লিড কীভাবে এসেছে</Bn>
+                {currentUser.defaultChannel && source === currentUser.defaultChannel && (
+                  <span style={{ marginLeft: 6, fontWeight: 400, color: "var(--ink-faint)" }}>(your default — change if this one's different)</span>
+                )}
               </span>
               <select value={source} onChange={(e) => setSource(e.target.value)} className={styles.textInput}>
                 {sources.map((s) => (

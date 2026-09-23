@@ -6,6 +6,7 @@ import {
   resetPassword,
   setAccountActive,
   renameAccount,
+  setDefaultChannel,
   createInvite,
   listInvites,
 } from "../../api/auth";
@@ -35,6 +36,7 @@ export function Users() {
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [niRole, setNiRole] = useState<Role | "">("");
+  const [niDefaultChannel, setNiDefaultChannel] = useState("");
   const [createdInvite, setCreatedInvite] = useState<Invite | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
 
@@ -44,6 +46,9 @@ export function Users() {
 
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  const [channelTarget, setChannelTarget] = useState<string | null>(null);
+  const [channelValue, setChannelValue] = useState("");
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [newChannel, setNewChannel] = useState("");
@@ -107,9 +112,11 @@ export function Users() {
 
   const resetAccount = resetTarget ? findAccountIn(accounts, resetTarget) : null;
   const renameTargetAccount = renameTarget ? findAccountIn(accounts, renameTarget) : null;
+  const channelTargetAccount = channelTarget ? findAccountIn(accounts, channelTarget) : null;
 
   function openInvite() {
     setNiRole("");
+    setNiDefaultChannel("");
     setCreatedInvite(null);
     setFlash("");
     setInviteOpen(true);
@@ -118,7 +125,12 @@ export function Users() {
   async function handleCreateInvite() {
     if (blockers.length || !niRole) return;
     try {
-      const invite = await createInvite({ role: niRole, facility: "", callingNumber: "" });
+      const invite = await createInvite({
+        role: niRole,
+        facility: "",
+        callingNumber: "",
+        defaultChannel: niRole === "requester" ? niDefaultChannel : "",
+      });
       setCreatedInvite(invite);
       refreshInvites();
     } catch (err) {
@@ -152,6 +164,19 @@ export function Users() {
     setRenameTarget(null);
     await refreshAccounts();
     await refreshAuth();
+  }
+
+  function openChannelEdit(id: string) {
+    const account = findAccountIn(accounts, id);
+    setChannelTarget(id);
+    setChannelValue(account?.defaultChannel ?? "");
+  }
+
+  async function confirmChannelEdit() {
+    if (!channelTarget) return;
+    await setDefaultChannel(channelTarget, channelValue);
+    setChannelTarget(null);
+    await refreshAccounts();
   }
 
   return (
@@ -242,7 +267,9 @@ export function Users() {
 
           {shown.map((a) => {
             const r = ROLE_META[a.role];
-            const meta = `${r.label} · ${a.facility}${a.callingNumber ? " · calls from " + a.callingNumber : a.role === "agent" ? " · no calling number set" : ""}`;
+            const meta =
+              `${r.label} · ${a.facility}${a.callingNumber ? " · calls from " + a.callingNumber : a.role === "agent" ? " · no calling number set" : ""}` +
+              (a.role === "requester" ? ` · default channel: ${a.defaultChannel || "none — picks every time"}` : "");
             return (
               <div key={a.employeeId} className={styles.row} style={{ opacity: a.active ? 1 : 0.6 }}>
                 <div className={styles.rowLeft}>
@@ -261,6 +288,11 @@ export function Users() {
                       <button type="button" className={styles.actionBtn} onClick={() => openRename(a.employeeId)}>
                         Edit name
                       </button>
+                      {a.role === "requester" && (
+                        <button type="button" className={styles.actionBtn} onClick={() => openChannelEdit(a.employeeId)}>
+                          Default channel
+                        </button>
+                      )}
                       <button type="button" className={styles.actionBtn} onClick={() => openReset(a.employeeId)}>
                         Reset password
                       </button>
@@ -446,7 +478,9 @@ export function Users() {
                     </div>
                     <div className={styles.pwNote}>
                       {createdInvite.roleLabel}
-                      {createdInvite.facility ? ` · ${createdInvite.facility}` : ""}. Works once — send it to one person.
+                      {createdInvite.facility ? ` · ${createdInvite.facility}` : ""}
+                      {createdInvite.defaultChannel ? ` · defaults to ${createdInvite.defaultChannel}` : ""}. Works once —
+                      send it to one person.
                     </div>
                   </div>
                 </div>
@@ -481,6 +515,27 @@ export function Users() {
                     </div>
                   </div>
 
+                  {niRole === "requester" && (
+                    <label className={styles.field} style={{ marginTop: 16 }}>
+                      <span className={styles.fieldLabel}>Default lead source (optional)</span>
+                      <select
+                        value={niDefaultChannel}
+                        onChange={(e) => setNiDefaultChannel(e.target.value)}
+                        className={styles.textInput}
+                      >
+                        <option value="">None — they pick a channel on every lead</option>
+                        {channels.filter((c) => c.active).map((c) => (
+                          <option key={c.name} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <span style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 4, display: "block" }}>
+                        Pre-fills their Add-lead form. They can still change it on any lead — this just saves a click on
+                        the usual case. Change it later from their row.
+                      </span>
+                    </label>
+                  )}
                 </div>
                 <div className={styles.modalFooter}>
                   <button
@@ -558,6 +613,40 @@ export function Users() {
                 Cancel
               </button>
               <button type="button" className={styles.confirmBtn} disabled={!renameValue.trim()} onClick={confirmRename}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {channelTargetAccount && (
+        <div className={`${styles.overlay} ${styles.overlayCenter}`}>
+          <div className={`${styles.modal} ${styles.modalNarrow}`}>
+            <div className={styles.resetTitle}>{channelTargetAccount.name}'s default channel</div>
+            <div className={styles.resetBody}>
+              Pre-fills their Add-lead form so they don't re-pick it on every lead. They can still change it on any
+              lead — this only sets what's there to start.
+            </div>
+            <select
+              value={channelValue}
+              onChange={(e) => setChannelValue(e.target.value)}
+              className={styles.textInput}
+              style={{ marginTop: 16 }}
+              autoFocus
+            >
+              <option value="">None — picks a channel on every lead</option>
+              {channels.filter((c) => c.active).map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <div className={styles.resetActions}>
+              <button type="button" className={styles.cancelBtn} onClick={() => setChannelTarget(null)}>
+                Cancel
+              </button>
+              <button type="button" className={styles.confirmBtn} onClick={confirmChannelEdit}>
                 Save
               </button>
             </div>

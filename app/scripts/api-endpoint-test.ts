@@ -16,6 +16,7 @@ import leadAction from "../api/leads/[id]/[action].js";
 import cdr from "../api/cdr/[monthKey].js";
 import stats from "../api/supervisor/stats.js";
 import invites from "../api/invites/index.js";
+import claimInvite from "../api/invites/[token].js";
 import channels from "../api/channels/index.js";
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
@@ -261,6 +262,53 @@ async function main() {
   check("roster lists each agent once", st.json.roster.filter((r: any) => r.agentId === "AGENT_003").length === 1);
   const agentUnesc = await call(LA, { method: "POST", query: { id: second.id, action: "unescalate" }, cookie: agentCookie });
   check("agent cannot un-escalate → 403", agentUnesc.status === 403);
+
+  console.log("\nRequester default channel");
+  const invWithChannel = await call(invites as Handler, {
+    method: "POST",
+    body: { role: "requester", facility: "", callingNumber: "", defaultChannel: "Door2Door Campaign" },
+    cookie: superCookie,
+  });
+  check("invite carries the default channel", invWithChannel.json.defaultChannel === "Door2Door Campaign");
+  const invAgentIgnoresChannel = await call(invites as Handler, {
+    method: "POST",
+    body: { role: "agent", facility: "", callingNumber: "", defaultChannel: "Door2Door Campaign" },
+    cookie: superCookie,
+  });
+  check("a non-requester invite ignores the field", invAgentIgnoresChannel.json.defaultChannel === "");
+  const claimed = await call(claimInvite as Handler, {
+    method: "POST",
+    query: { token: invWithChannel.json.token },
+    body: { firstName: "Chan", lastName: "Nel", eid: "8001", email: "", password: "correct-horse" },
+  });
+  check("claiming the invite carries the default channel onto the new account", claimed.json.account?.defaultChannel === "Door2Door Campaign");
+  const wrongEdit = await call(accountAction as Handler, {
+    method: "POST",
+    query: { id: "REQ_005", action: "set-default-channel" },
+    body: { defaultChannel: "Website LP" },
+    cookie: leadCookie,
+  });
+  check("team lead cannot set a requester's default channel → 403", wrongEdit.status === 403);
+  const editChannel = await call(accountAction as Handler, {
+    method: "POST",
+    query: { id: "REQ_005", action: "set-default-channel" },
+    body: { defaultChannel: "Website LP" },
+    cookie: superCookie,
+  });
+  check("superadmin sets a requester's default channel", editChannel.status === 200);
+  const acctsAfter = await call(accounts as Handler, { cookie: superCookie });
+  check("it shows up on the roster", acctsAfter.json.find((a: any) => a.employeeId === "REQ_005")?.defaultChannel === "Website LP");
+  const clearChannel = await call(accountAction as Handler, {
+    method: "POST",
+    query: { id: "REQ_005", action: "set-default-channel" },
+    body: { defaultChannel: "" },
+    cookie: superCookie,
+  });
+  const acctsCleared = await call(accounts as Handler, { cookie: superCookie });
+  check(
+    "clearing it goes back to no default",
+    clearChannel.status === 200 && acctsCleared.json.find((a: any) => a.employeeId === "REQ_005")?.defaultChannel === "",
+  );
 
   console.log("\nRevocation: reset and deactivation end sessions immediately");
   const reset = await call(accountAction as Handler, { method: "POST", query: { id: "AGENT_004", action: "reset-password" }, cookie: superCookie });

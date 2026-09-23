@@ -16,6 +16,7 @@ interface InviteRow {
   role: string;
   facility: string;
   calling_number: string;
+  default_channel: string;
   used_at: string | null;
 }
 
@@ -33,7 +34,7 @@ interface ClaimBody {
 export default publicRoute({
   GET: async (req, res) => {
     const token = String(req.query.token);
-    const { rows } = await query<InviteRow>("select token, role, facility, calling_number, used_at from invites where token = $1", [token]);
+    const { rows } = await query<InviteRow>("select token, role, facility, calling_number, default_channel, used_at from invites where token = $1", [token]);
     const invite = rows[0];
     if (!invite || invite.used_at) return void res.status(200).json(null);
     res.status(200).json({ role: invite.role, roleLabel: ROLE_LABEL[invite.role] ?? invite.role, facility: invite.facility });
@@ -63,7 +64,7 @@ export default publicRoute({
     try {
       await client.query("begin");
       const { rows: inviteRows } = await client.query<InviteRow>(
-        "select token, role, facility, calling_number, used_at from invites where token = $1 for update",
+        "select token, role, facility, calling_number, default_channel, used_at from invites where token = $1 for update",
         [token],
       );
       const invite = inviteRows[0];
@@ -77,10 +78,10 @@ export default publicRoute({
       }
 
       const { rows } = await client.query<AccountRow & { session_version: number }>(
-        `insert into accounts (employee_id, name, email, role, password_hash, must_change_password, calling_number, facility)
-         values ($1,$2,$3,$4,$5,false,$6,$7)
-         returning employee_id, name, email, role, must_change_password, calling_number, active, facility, presence, session_version`,
-        [employeeId, name, (b.email ?? "").trim(), invite.role, hash, invite.calling_number, invite.facility],
+        `insert into accounts (employee_id, name, email, role, password_hash, must_change_password, calling_number, facility, default_channel)
+         values ($1,$2,$3,$4,$5,false,$6,$7,$8)
+         returning employee_id, name, email, role, must_change_password, calling_number, active, facility, presence, default_channel, session_version`,
+        [employeeId, name, (b.email ?? "").trim(), invite.role, hash, invite.calling_number, invite.facility, invite.default_channel],
       );
       await client.query("update invites set used_at = now(), used_by = $1 where token = $2", [employeeId, token]);
       await client.query("commit");
