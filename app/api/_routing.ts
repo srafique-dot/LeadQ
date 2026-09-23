@@ -19,8 +19,37 @@ export const WORKING_SET = 8;
  * Matches the "same agent for follow-ups within the week" rule. */
 export const STICKY_DAYS = 7;
 
+/** Gap between unanswered attempts. The lead is held out of every queue
+ * until then, so "Call 2 of 4" actually means a later try rather than the
+ * same lead reappearing at the top a second after it was logged. */
+export const RETRY_AFTER_MIN = 12;
+
+/** Presence is declared, but a declaration can outlive the person — someone
+ * closes the tab instead of signing out. An "available" agent whose screen
+ * hasn't pulled the queue in this long is treated as away for routing: their
+ * untouched leads go back to the floor and nothing new is handed to them. */
+export const PRESENCE_STALE_MIN = 20;
+
+/** Today's date where the call centre is. The database runs in UTC, so a
+ * bare current_date would be yesterday for the first six hours of a Dhaka
+ * day — callbacks and "today" stats both key off this instead. */
+export const TODAY = "(now() at time zone 'Asia/Dhaka')::date";
+
 const OPEN = "status in ('waiting','trying') and not escalated";
-const DUE = "(next_action_date is null or next_action_date <= current_date)";
+const DUE = `(next_action_date is null or next_action_date <= ${TODAY}) and (retry_after is null or retry_after <= now())`;
+
+/** No live claim on the lead in `alias` — never claimed, released, or the
+ * claim ran out because whoever held it is gone. An expired claim has to
+ * count as free everywhere, or a lead someone walked away from mid-call is
+ * skipped by every rule that could hand it to someone else. */
+function free(alias: string): string {
+  return `(${alias}.claimed_by is null or ${alias}.claimed_at < now() - interval '${CLAIM_TTL_MIN} minutes')`;
+}
+
+/** True when the agent in `alias` isn't really on the floor right now. */
+function away(alias: string): string {
+  return `(${alias}.presence <> 'available' or ${alias}.presence_at is null or ${alias}.presence_at < now() - interval '${PRESENCE_STALE_MIN} minutes')`;
+}
 
 /** Hands leads back to the pool when holding them no longer helps anyone:
  * either the agent never actually spoke to them and has since gone
@@ -29,9 +58,9 @@ const DUE = "(next_action_date is null or next_action_date <= current_date)";
 export async function releaseStaleAssignments(): Promise<void> {
   await query(
     `update leads l
-        set assigned_to = null, assigned_at = null
+        set assigned_to = null, assigned_at = null, claimed_by = null, claimed_at = null
       where l.assigned_to is not null
-        and l.claimed_by is null
+        and ${free("l")}
         and ${OPEN}
         and (
           -- never worked by this agent, and they are not at their desk
@@ -41,7 +70,7 @@ export async function releaseStaleAssignments(): Promise<void> {
            )
            and exists (
              select 1 from accounts a
-              where a.employee_id = l.assigned_to and a.presence <> 'available'
+              where a.employee_id = l.assigned_to and ${away("a")}
            ))
           -- or the sticky window since their last call has expired
           or (select max(d.created_at) from dispositions d
@@ -72,8 +101,8 @@ export async function topUpWorkingSet(agentId: string): Promise<void> {
     `update leads
         set assigned_to = $1, assigned_at = now()
       where id in (
-        select id from leads
-         where ${OPEN} and ${DUE} and assigned_to is null and claimed_by is null
+        select id from leads l
+         where ${OPEN} and ${DUE} and l.assigned_to is null and ${free("l")}
          order by urgent desc, created_at asc
          limit $2
          for update skip locked
@@ -90,15 +119,17 @@ export function borrowableSql(): string {
   return `
     select l.* from leads l
      where ${OPEN} and ${DUE}
-       and l.claimed_by is null
+       -- Or already on loan to this agent: otherwise the lead vanishes from
+       -- their screen mid-call on the next refresh.
+       and (${free("l")} or l.claimed_by = $1)
        and l.assigned_to is not null
        and l.assigned_to <> $1
        and exists (
          select 1 from accounts a
-          where a.employee_id = l.assigned_to and a.presence <> 'available'
+          where a.employee_id = l.assigned_to and ${away("a")}
        )
        and (
-         (l.next_action_date is not null and l.next_action_date <= current_date)
+         (l.next_action_date is not null and l.next_action_date <= ${TODAY})
          or not exists (select 1 from dispositions d where d.lead_id = l.id)
        )
      order by l.urgent desc, l.created_at asc
@@ -112,6 +143,14 @@ export function assignedSql(): string {
      order by l.urgent desc, l.created_at asc`;
 }
 
+/** An open Agent screen keeps what it's holding alive, so a claim only
+ * lapses when the person has actually gone — not because a call ran long.
+ * Also the activity signal PRESENCE_STALE_MIN reads. */
+export async function heartbeat(agentId: string): Promise<void> {
+  await query("update accounts set presence_at = now() where employee_id = $1 and presence = 'available'", [agentId]);
+  await query("update leads set claimed_at = now() where claimed_by = $1", [agentId]);
+}
+
 /** The atomic claim. The WHERE clause is the whole point: Postgres
  * serializes concurrent UPDATEs on the same row, and the loser re-checks
  * this predicate against the winner's committed row and matches nothing.
@@ -121,6 +160,7 @@ export async function claimLead(leadId: string, agentId: string): Promise<LeadRo
     `update leads
         set claimed_by = $1, claimed_at = now()
       where id = $2
+        and status in ('waiting', 'trying') and not escalated
         and (claimed_by is null
              or claimed_by = $1
              or claimed_at < now() - ($3 || ' minutes')::interval)

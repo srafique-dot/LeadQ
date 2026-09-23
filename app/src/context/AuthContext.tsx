@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Account } from "../api/types";
-import { getCurrentUser, signOut as apiSignOut, listAccounts, findAccountIn } from "../api/auth";
+import { getCurrentUser, signOut as apiSignOut, listAccounts, findAccountIn, UNAUTHENTICATED_EVENT } from "../api/auth";
 
 interface AuthContextValue {
   /** The account every screen should render as — the impersonated account
@@ -24,7 +24,7 @@ interface AuthContextValue {
   /** Call after api/auth.ts writes a new session (sign-in or password change)
    * so the rest of the app re-renders with the new identity. */
   refresh: () => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -41,18 +41,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshAccounts() {
-    const list = await listAccounts();
-    setAccounts(list);
+    try {
+      setAccounts(await listAccounts());
+    } catch {
+      /* 401 is handled by the event below; anything else keeps the old list */
+    }
   }
 
   useEffect(() => {
     refresh().finally(() => setLoading(false));
+    const onExpired = () => {
+      setViewAsId(null);
+      setRealUser(null);
+    };
+    window.addEventListener(UNAUTHENTICATED_EVENT, onExpired);
+    return () => window.removeEventListener(UNAUTHENTICATED_EVENT, onExpired);
   }, []);
 
   useEffect(() => {
-    if (realUser) refreshAccounts();
+    if (realUser && !realUser.mustChangePassword) refreshAccounts();
     else setAccounts([]);
-  }, [realUser?.employeeId]);
+  }, [realUser?.employeeId, realUser?.mustChangePassword]);
 
   const viewedAccount = viewAsId ? (findAccountIn(accounts, viewAsId) ?? null) : null;
 
@@ -66,8 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       viewAsId,
       setViewAs: (employeeId) => setViewAsId(employeeId),
       refresh,
-      signOut: () => {
-        apiSignOut();
+      signOut: async () => {
+        await apiSignOut();
         setViewAsId(null);
         setRealUser(null);
       },

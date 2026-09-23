@@ -18,6 +18,7 @@ const ERROR_TEXT: Record<SignInError, string> = {
   unknown_id: "No account with that employee ID. Check it with your team lead.",
   empty_password: "Type your password.",
   wrong_password: "That password does not match. A superadmin can reset it for you.",
+  locked: "Too many wrong passwords. Sign-in is paused for 15 minutes, or a superadmin can reset it now.",
   network: "Couldn't reach the server. Check your connection and try again.",
 };
 
@@ -36,7 +37,10 @@ function initials(name: string): string {
 }
 
 export function SignIn() {
-  const { refresh } = useAuth();
+  const { refresh, realUser } = useAuth();
+  // Signed in with a temporary password, then reloaded before changing it:
+  // the server still refuses everything else, so pick up at the change step.
+  const pendingFromSession = realUser?.mustChangePassword ? realUser : null;
   const narrow = useMediaQuery("(max-width: 560px)");
   const deviceWord = narrow ? "phone" : "computer";
 
@@ -50,8 +54,8 @@ export function SignIn() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const [stage, setStage] = useState<"signin" | "change">("signin");
-  const [pendingAccount, setPendingAccount] = useState<Account | null>(null);
+  const [stage, setStage] = useState<"signin" | "change">(pendingFromSession ? "change" : "signin");
+  const [pendingAccount, setPendingAccount] = useState<Account | null>(pendingFromSession);
   const [newPw, setNewPw] = useState("");
   const [repeatPw, setRepeatPw] = useState("");
   const [saveError, setSaveError] = useState("");

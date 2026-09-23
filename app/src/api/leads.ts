@@ -39,14 +39,23 @@ async function getJson<T>(url: string): Promise<T> {
   return res.json();
 }
 
+/** Thrown for any non-2xx. `code` is the server's error string (e.g.
+ * "not_your_claim"), so screens can react to specific refusals. */
+export class ApiError extends Error {
+  constructor(public status: number, public code: string) {
+    super(code);
+    this.name = "ApiError";
+  }
+}
+
 async function postJson<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? `Request failed: ${url}`);
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, json.error ?? `Request failed: ${url}`);
   return json;
 }
 
@@ -61,8 +70,9 @@ export async function findLeadByPhone(phone: string): Promise<Lead | undefined> 
 }
 
 export async function getLead(id: string): Promise<Lead | undefined> {
-  const all = await getAllLeads();
-  return all.find((l) => l.id === id);
+  const res = await fetch(`/api/leads?id=${encodeURIComponent(id)}`);
+  if (!res.ok) return undefined;
+  return res.json();
 }
 
 export function serviceLine(input: { doctor: string; department: string; patientName: string }): string {
@@ -96,18 +106,16 @@ export interface ImportRow {
 }
 
 export interface ImportResult {
-  created: Lead[];
-  duplicates: { row: ImportRow; existing: Lead }[];
+  created: { id: string; name: string; phone: string }[];
+  /** existing.id is empty when the earlier copy is further up the same file. */
+  duplicates: { row: ImportRow; existing: { id: string; name: string } }[];
+  /** Rows dropped for having no name or no usable phone number. */
+  skipped: number;
 }
 
-export function importLeads(
-  rows: ImportRow[],
-  cohort: string,
-  ownerId: string,
-  ownerName: string,
-  cohortInstructions = "",
-): Promise<ImportResult> {
-  return postJson("/api/leads?action=import", { rows, cohort, cohortInstructions, ownerId, ownerName });
+/** Owner is whoever is signed in; the server takes it from the session. */
+export function importLeads(rows: ImportRow[], cohort: string, cohortInstructions = ""): Promise<ImportResult> {
+  return postJson("/api/leads?action=import", { rows, cohort, cohortInstructions });
 }
 
 /** Fetched on demand (not preloaded) — an agent taps the cohort chip when
@@ -183,20 +191,16 @@ export class LeadClaimedError extends Error {
 /** Takes the "I'm on this call" lock. Throws LeadClaimedError if another
  * agent got there first — the check is atomic server-side, so this is the
  * only thing standing between two agents and the same phone number. */
-export async function claimLead(leadId: string, agentId: string): Promise<Lead> {
-  const res = await fetch(`/api/leads/${leadId}/claim`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ agentId }),
-  });
+export async function claimLead(leadId: string): Promise<Lead> {
+  const res = await fetch(`/api/leads/${leadId}/claim`, { method: "POST" });
   const json = await res.json();
   if (res.status === 409) throw new LeadClaimedError(json.holderName ?? "Another agent");
   if (!res.ok) throw new Error(json.error ?? "Could not open that lead.");
   return json;
 }
 
-export function releaseLead(leadId: string, agentId: string): Promise<Lead> {
-  return postJson(`/api/leads/${leadId}/release`, { agentId });
+export function releaseLead(leadId: string): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/release`);
 }
 
 /** Supervisor override — hand a lead to a specific agent, or pass null to
@@ -205,11 +209,10 @@ export function reassignLead(leadId: string, agentId: string | null): Promise<Le
   return postJson(`/api/leads/${leadId}/reassign`, { agentId });
 }
 
-export async function searchLeads(term: string): Promise<Lead[]> {
-  const t = term.trim().toLowerCase();
-  const all = await getAllLeads();
-  if (!t) return all.slice(0, 20);
-  return all.filter((l) => (l.name + l.phone).toLowerCase().includes(t)).slice(0, 20);
+/** Matched server-side and capped at 20, so the call screen isn't pulling
+ * every lead in the system to find one caller. */
+export function searchLeads(term: string): Promise<Lead[]> {
+  return getJson(`/api/leads?search=${encodeURIComponent(term.trim())}`);
 }
 
 export interface DispositionInput {
@@ -219,8 +222,6 @@ export interface DispositionInput {
   nextActionDate: string;
   erpRefType: "booking" | "invoice" | "";
   erpRefValue: string;
-  agentId: string;
-  agentName: string;
 }
 
 /** Applies a two-level call disposition to a lead. The status-transition
@@ -230,8 +231,10 @@ export function saveDisposition(leadId: string, input: DispositionInput): Promis
   return postJson(`/api/leads/${leadId}/disposition`, input);
 }
 
-export function escalateLead(leadId: string, agentId: string, agentName: string): Promise<Lead> {
-  return postJson(`/api/leads/${leadId}/escalate`, { agentId, agentName });
+/** The reason is required: it's the only thing the team lead sees before
+ * deciding what to do with the lead. */
+export function escalateLead(leadId: string, reason: string): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/escalate`, { reason });
 }
 
 export function splitMergedLead(leadId: string): Promise<Lead> {
@@ -274,6 +277,7 @@ export interface LeadSummary {
   nextActionDate?: string;
   escalatedBy?: string;
   escalatedAt?: string;
+  escalatedReason?: string;
 }
 
 /** A lead someone claimed and then stopped working — opened, never
@@ -289,7 +293,9 @@ export interface AbandonedClaim {
 export interface RosterEntry {
   agentId: string;
   agentName: string;
-  presence: "available" | "break" | "off";
+  /** "idle" means marked available but the screen hasn't checked in for a
+   * while (closed tab, dead laptop, walked away). */
+  presence: "available" | "idle" | "break" | "off";
   assigned: number;
   onCall: string;
 }
@@ -313,7 +319,7 @@ export async function getSupervisorStats(): Promise<SupervisorStats> {
     dayStatsByAgent: AgentDayStats[];
     pastTarget: { id: string; name: string; facility: string; urgent: boolean; created_at: string }[];
     overdueCallbacks: { id: string; name: string; facility: string; next_action_date: string }[];
-    escalated: { id: string; name: string; escalated_by: string; escalated_at: string }[];
+    escalated: { id: string; name: string; escalated_by: string; escalated_at: string; escalated_reason: string }[];
     abandoned: AbandonedClaim[];
     roster: RosterEntry[];
   }>("/api/supervisor/stats");
@@ -323,7 +329,7 @@ export async function getSupervisorStats(): Promise<SupervisorStats> {
     dayStatsByAgent: json.dayStatsByAgent,
     pastTarget: json.pastTarget.map((r) => ({ id: r.id, name: r.name, facility: r.facility, urgent: r.urgent, createdAt: r.created_at })),
     overdueCallbacks: json.overdueCallbacks.map((r) => ({ id: r.id, name: r.name, facility: r.facility, nextActionDate: r.next_action_date })),
-    escalated: json.escalated.map((r) => ({ id: r.id, name: r.name, facility: "", escalatedBy: r.escalated_by, escalatedAt: r.escalated_at })),
+    escalated: json.escalated.map((r) => ({ id: r.id, name: r.name, facility: "", escalatedBy: r.escalated_by, escalatedAt: r.escalated_at, escalatedReason: r.escalated_reason })),
     abandoned: json.abandoned ?? [],
     roster: json.roster ?? [],
   };
@@ -360,6 +366,15 @@ export function getCdrMonth(monthKey: string): Promise<CdrMonth | null> {
   return getJson(`/api/cdr/${monthKey}`);
 }
 
-export function saveCdrMonth(monthKey: string, fileName: string, uploadedBy: string, rows: CdrRow[]): Promise<{ ok: true; count: number }> {
-  return postJson(`/api/cdr/${monthKey}`, { fileName, uploadedBy, rows });
+/** Sent as parallel columns: as an array of objects a busy month's file
+ * goes past the 4.5 MB request limit on the hosting. */
+export function saveCdrMonth(monthKey: string, fileName: string, rows: CdrRow[]): Promise<{ ok: true; count: number }> {
+  return postJson(`/api/cdr/${monthKey}`, {
+    fileName,
+    extension: rows.map((r) => r.extension),
+    numberDialled: rows.map((r) => r.numberDialled),
+    startTime: rows.map((r) => r.startTime),
+    durationSec: rows.map((r) => r.durationSec),
+    connected: rows.map((r) => r.connected),
+  });
 }

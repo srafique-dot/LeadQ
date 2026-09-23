@@ -1,5 +1,6 @@
 import { query } from "../_db.js";
 import { route, body } from "../_http.js";
+import { allow } from "../_auth.js";
 
 const ROLE_LABEL: Record<string, string> = {
   requester: "Business development",
@@ -41,7 +42,8 @@ interface NewInviteBody {
 }
 
 export default route({
-  GET: async (_req, res) => {
+  GET: async (_req, res, session) => {
+    if (!allow(res, session, "superadmin")) return;
     const { rows } = await query<InviteRow>(
       `select i.token, i.role, i.facility, i.calling_number, i.created_by, i.created_at, i.used_at, a.name as used_by_name
        from invites i
@@ -51,13 +53,14 @@ export default route({
     res.status(200).json(rows.map(serialize));
   },
 
-  POST: async (req, res) => {
+  POST: async (req, res, session) => {
+    if (!allow(res, session, "superadmin")) return;
     const b = body<NewInviteBody>(req);
     const { rows } = await query<InviteRow>(
       `insert into invites (role, facility, calling_number, created_by)
        values ($1,$2,$3,$4)
        returning token, role, facility, calling_number, created_by, created_at, used_at, null as used_by_name`,
-      [b.role, b.facility, b.callingNumber.trim(), b.createdBy],
+      [b.role, b.facility ?? "", (b.callingNumber ?? "").trim(), session.employeeId],
     );
     res.status(201).json(serialize(rows[0]));
   },

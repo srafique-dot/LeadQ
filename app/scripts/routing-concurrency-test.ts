@@ -174,7 +174,28 @@ async function testBorrowable() {
   check("a lead under an active claim is no longer offered", !after.some((r) => r.id === "L-000030"));
 }
 
+/** Self-contained fixtures so the suite runs on any freshly loaded schema:
+ * three agents on the floor, one away, one requester, 60 open leads. */
+async function setup() {
+  await query("truncate dispositions, lead_entries, leads, invites, accounts cascade");
+  await query(
+    `insert into accounts (employee_id, name, role, password_hash, must_change_password, presence, presence_at) values
+       ('ALPHA_001', 'Alpha Agent', 'agent', 'x', false, 'available', now()),
+       ('BRAVO_002', 'Bravo Agent', 'agent', 'x', false, 'available', now()),
+       ('CHARLI_003', 'Charli Agent', 'agent', 'x', false, 'available', now()),
+       ('DELTA_004', 'Delta Agent', 'agent', 'x', false, 'off', null),
+       ('REQ_005', 'Req Person', 'requester', 'x', false, 'off', null)`,
+  );
+  await query(
+    `insert into leads (id, name, phone, owner_id, owner_name, created_at)
+     select 'L-' || lpad(n::text, 6, '0'), 'Lead ' || n, '0171' || lpad(n::text, 7, '0'), 'REQ_005', 'Req Person',
+            now() - (n || ' minutes')::interval
+       from generate_series(1, 60) n`,
+  );
+}
+
 async function main() {
+  await setup();
   await testSimultaneousClaim();
   await testBorrowable();
   await testClaimStorm();

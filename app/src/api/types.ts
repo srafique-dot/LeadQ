@@ -124,6 +124,9 @@ export interface Lead {
   escalated: boolean;
   escalatedBy: string;
   escalatedAt: string;
+  escalatedReason: string;
+  /** ISO time a failed attempt is held out of the queue until; "" if not held. */
+  retryAfter: string;
   /** The agent this lead is routed to. Sticky to whoever last logged an
    * outcome, so follow-ups go back to the person who already spoke to them. */
   assignedTo: string;

@@ -1,11 +1,14 @@
 import { query } from "../_db.js";
 import { route } from "../_http.js";
-import { ABANDONED_AFTER_MIN } from "../_routing.js";
+import { allow } from "../_auth.js";
+import { ABANDONED_AFTER_MIN, PRESENCE_STALE_MIN, TODAY } from "../_routing.js";
 
 const TARGET_MIN = 5;
 
 export default route({
-  GET: async (_req, res) => {
+  GET: async (_req, res, session) => {
+    if (!allow(res, session, "admin", "superadmin")) return;
+
     const [waiting, dayStats, pastTarget, overdueCallbacks, escalated, abandoned, roster] = await Promise.all([
       query<{ count: string; oldest_min: number | null }>(
         "select count(*)::text as count, extract(epoch from (now() - min(created_at)))/60 as oldest_min from leads where status = 'waiting'",
@@ -17,7 +20,7 @@ export default route({
                count(*) filter (where l2 in ('appointment_booked','appointment_purchased'))::text as booked,
                count(*) filter (where l1 in ('not_responding','busy','number_off','call_rejected'))::text as no_answer
         from dispositions
-        where created_at::date = current_date
+        where (created_at at time zone 'Asia/Dhaka')::date = ${TODAY}
         group by agent_id
       `),
       query<{ id: string; name: string; facility: string; urgent: boolean; created_at: string }>(
@@ -27,14 +30,14 @@ export default route({
         [TARGET_MIN],
       ),
       query<{ id: string; name: string; facility: string; next_action_date: string }>(
-        "select id, name, facility, next_action_date from leads where next_action_date is not null and next_action_date < current_date and status in ('waiting','trying')",
+        `select id, name, facility, next_action_date from leads
+          where next_action_date is not null and next_action_date < ${TODAY} and status in ('waiting','trying')`,
       ),
-      query<{ id: string; name: string; escalated_by: string; escalated_at: string }>(
-        "select id, name, escalated_by, escalated_at from leads where escalated = true order by escalated_at desc",
+      query<{ id: string; name: string; escalated_by: string; escalated_at: string; escalated_reason: string }>(
+        "select id, name, escalated_by, escalated_at, escalated_reason from leads where escalated = true order by escalated_at desc",
       ),
-      // Claimed, but no outcome logged since — someone opened the lead and
-      // walked away from it. Surfaced before the claim self-expires so a
-      // supervisor can step in rather than just waiting it out.
+      // Opened, then no heartbeat since — the agent's screen went away with
+      // the lead still in hand. Surfaced before the claim self-expires.
       query<{ id: string; name: string; claimed_by: string; claimed_by_name: string | null; held_min: number }>(
         `select l.id, l.name, l.claimed_by, a.name as claimed_by_name,
                 extract(epoch from (now() - l.claimed_at))/60 as held_min
@@ -45,17 +48,15 @@ export default route({
           order by l.claimed_at asc`,
         [ABANDONED_AFTER_MIN],
       ),
-      // Who is on the floor, and how much work is sitting with each of them.
-      query<{ employee_id: string; name: string; presence: string; assigned: string; on_call: string | null }>(
+      query<{ employee_id: string; name: string; presence: string; idle: boolean; assigned: string; on_call: string | null }>(
         `select a.employee_id, a.name, a.presence,
-                count(l.id) filter (where l.status in ('waiting','trying'))::text as assigned,
-                max(c.name) as on_call
+                (a.presence = 'available' and (a.presence_at is null or a.presence_at < now() - ($1 || ' minutes')::interval)) as idle,
+                (select count(*) from leads l where l.assigned_to = a.employee_id and l.status in ('waiting','trying'))::text as assigned,
+                (select c.name from leads c where c.claimed_by = a.employee_id order by c.claimed_at desc limit 1) as on_call
            from accounts a
-           left join leads l on l.assigned_to = a.employee_id
-           left join leads c on c.claimed_by = a.employee_id
           where a.role = 'agent' and a.active
-          group by a.employee_id, a.name, a.presence
           order by a.name`,
+        [PRESENCE_STALE_MIN],
       ),
     ]);
 
@@ -92,7 +93,7 @@ export default route({
       roster: roster.rows.map((r) => ({
         agentId: r.employee_id,
         agentName: r.name,
-        presence: r.presence,
+        presence: r.idle ? "idle" : r.presence,
         assigned: Number(r.assigned),
         onCall: r.on_call ?? "",
       })),

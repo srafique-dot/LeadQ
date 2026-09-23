@@ -118,7 +118,7 @@ export function Users() {
   async function handleCreateInvite() {
     if (blockers.length || !niRole) return;
     try {
-      const invite = await createInvite({ role: niRole, facility: "", callingNumber: "", createdBy: currentUser.employeeId });
+      const invite = await createInvite({ role: niRole, facility: "", callingNumber: "" });
       setCreatedInvite(invite);
       refreshInvites();
     } catch (err) {

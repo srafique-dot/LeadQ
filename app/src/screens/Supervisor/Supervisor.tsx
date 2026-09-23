@@ -106,6 +106,7 @@ export function Supervisor() {
   const roster = stats?.roster ?? [];
   const PRESENCE_LABEL: Record<string, { text: string; color: string }> = {
     available: { text: "Available", color: "var(--success)" },
+    idle: { text: "Available · no activity 20m+", color: "var(--warning)" },
     break: { text: "On break", color: "var(--warning)" },
     off: { text: "Signed off", color: "var(--ink-faint)" },
   };
@@ -147,7 +148,12 @@ export function Supervisor() {
   const allDisplayLeads = allFilteredLeads.slice(0, DISPLAY_CAP);
 
   function exportAllLeadsCsv() {
-    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    // A cell starting with = + - @ is run as a formula by Excel. Lead names
+    // and notes come from website forms, so neutralise them with a leading '.
+    const escape = (v: string) => {
+      const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
     const header = [
       "Lead ID", "Caller name", "Caller phone", "Patient name (if different)", "Channel", "Cohort", "Facility",
       "Lead type", "Status", "Latest outcome", "ERP ref type", "ERP ref value", "Created", "Latest disposition",
@@ -205,7 +211,7 @@ export function Supervisor() {
         setFlash("File failed the integrity check — the record count doesn't match the sum of per-extension dials.");
         return;
       }
-      await saveCdrMonth(activeMonth.key, file.name, `${currentUser.employeeId} ${currentUser.name}`, rows);
+      await saveCdrMonth(activeMonth.key, file.name, rows);
       const fresh = await getCdrMonth(activeMonth.key);
       setCdr(fresh);
       setFlash(`${rows.length.toLocaleString()} call records loaded for ${activeMonth.label}.`);
@@ -399,7 +405,16 @@ export function Supervisor() {
                     <div className={styles.alertTop}>
                       <span className={styles.alertTitle}>{l.name}</span>
                     </div>
-                    <div className={styles.alertDetail}>By {l.escalatedBy} · {l.escalatedAt}</div>
+                    {l.escalatedReason && (
+                      <div className={styles.alertDetail} style={{ color: "var(--ink-secondary)", marginBottom: 2 }}>
+                        “{l.escalatedReason}”
+                      </div>
+                    )}
+                    <div className={styles.alertDetail}>
+                      By {l.escalatedBy}
+                      {l.escalatedAt &&
+                        ` · ${new Date(l.escalatedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}`}
+                    </div>
                     <button
                       type="button"
                       className={styles.alertBtn}

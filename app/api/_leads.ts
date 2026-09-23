@@ -31,11 +31,24 @@ export interface LeadRow {
   escalated: boolean;
   escalated_by: string;
   escalated_at: string | null;
+  escalated_reason: string;
+  retry_after: string | null;
   assigned_to: string | null;
   assigned_at: string | null;
   claimed_by: string | null;
   claimed_at: string | null;
   created_at: string;
+}
+
+/** The server runs in UTC; everyone reading these strings is in Dhaka. */
+export function dhaka(date: Date, withDate = true): string {
+  return date.toLocaleString("en-GB", {
+    timeZone: "Asia/Dhaka",
+    ...(withDate ? { day: "numeric", month: "short" } : {}),
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 /** Maps a `leads` row plus its entries/history into the shape the frontend's
@@ -88,7 +101,7 @@ export async function serializeLead(row: LeadRow) {
       l2: h.l2,
       note: h.note,
       whenISO: h.created_at,
-      when: new Date(h.created_at).toLocaleString(),
+      when: dhaka(new Date(h.created_at)),
     })),
     nextActionDate: row.next_action_date ?? "",
     erpRefType: row.erp_ref_type,
@@ -96,6 +109,8 @@ export async function serializeLead(row: LeadRow) {
     escalated: row.escalated,
     escalatedBy: row.escalated_by,
     escalatedAt: row.escalated_at ?? "",
+    escalatedReason: row.escalated_reason ?? "",
+    retryAfter: row.retry_after ?? "",
     assignedTo: row.assigned_to ?? "",
     assignedAt: row.assigned_at ?? "",
     claimedBy: row.claimed_by ?? "",

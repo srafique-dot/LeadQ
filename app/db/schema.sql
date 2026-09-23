@@ -32,6 +32,12 @@ create table accounts (
   -- only reclaims another agent's untouched leads when they are not.
   presence text not null default 'off' check (presence in ('available', 'break', 'off')),
   presence_at timestamptz,
+  -- Signed session cookies carry this number; bumping it (password reset,
+  -- deactivation, password change) signs the account out everywhere.
+  session_version int not null default 0,
+  -- Five wrong passwords lock sign-in for 15 minutes.
+  failed_logins int not null default 0,
+  locked_until timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -92,10 +98,12 @@ insert into settings (key, value) values
   ('sms_booking_confirm', 'Hi {name}, your appointment with {doctor} at {facility} is confirmed for {date} {time}. Please arrive 15 minutes early with any previous reports.');
 
 create table leads (
-  id text primary key default 'L-' || upper(substr(encode(gen_random_bytes(4), 'hex'), 1, 6)),
+  id text primary key default 'L-' || upper(encode(gen_random_bytes(5), 'hex')),
   name text not null,
   phone text not null,
-  digits text generated always as (regexp_replace(right(phone, 10), '\D', '', 'g')) stored,
+  -- Strip first, then take the last 10: must match digitsOf() in api/_leads.ts
+  -- or "017 1234 5678" and "01712345678" are not seen as the same number.
+  digits text generated always as (right(regexp_replace(phone, '\D', '', 'g'), 10)) stored,
   lead_type lead_type not null default 'appointment',
   facility text not null default '',
   area text not null default '',
@@ -123,6 +131,10 @@ create table leads (
   escalated boolean not null default false,
   escalated_by text not null default '',
   escalated_at timestamptz,
+  escalated_reason text not null default '',
+  -- After a failed attempt the lead is held out of the queue until this
+  -- time, so the retry ladder is spaced out rather than redialled at once.
+  retry_after timestamptz,
   -- Routing. assigned_to is the agent this lead belongs to: set when it is
   -- handed out, and made sticky to whoever last logged an outcome on it so
   -- follow-ups go back to the person who already spoke to them. claimed_by

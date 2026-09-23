@@ -48,7 +48,7 @@ export function Requester() {
         : leads.filter((l) => l.status === filter);
 
   const stats = [
-    { value: leads.length, label: "Added by you today", color: "#16232A" },
+    { value: leads.filter((l) => new Date(l.createdAt).toDateString() === new Date().toDateString()).length, label: "Added by you today", color: "#16232A" },
     { value: leads.filter((l) => l.status === "booked").length, label: "Booked", color: "var(--success)" },
     { value: leads.filter((l) => l.status === "waiting" || l.status === "trying").length, label: "Still being called", color: "var(--primary)" },
     { value: leads.filter((l) => l.urgent).length, label: "Marked urgent", color: "var(--danger)" },
@@ -77,7 +77,7 @@ export function Requester() {
       <div className={styles.main}>
         <div className={styles.titleRow}>
           <div className={styles.titleBlock}>
-            <h1 className={styles.title}>Your leads today</h1>
+            <h1 className={styles.title}>Your leads</h1>
             <div className={styles.titleSub}>The call centre works these in arrival order. You see what happened, not the calling itself.</div>
           </div>
           <div className={styles.actions}>
@@ -214,7 +214,6 @@ export function Requester() {
 
       {importOpen && (
         <ImportModal
-          currentUser={user}
           onClose={() => setImportOpen(false)}
           onImported={() => refreshLeads()}
         />

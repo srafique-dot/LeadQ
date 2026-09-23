@@ -1,10 +1,9 @@
 import { useRef, useState } from "react";
 import styles from "../Requester.module.css";
 import { importLeads, type ImportRow, type ImportResult } from "../../../api/leads";
-import type { Account, LeadType } from "../../../api/types";
+import type { LeadType } from "../../../api/types";
 
 interface ImportModalProps {
-  currentUser: Account;
   onClose: () => void;
   onImported: (result: ImportResult, cohort: string) => void;
 }
@@ -264,7 +263,7 @@ function parsePastedLeads(text: string): ImportRow[] {
     .filter((r) => r.name && r.phone);
 }
 
-export function ImportModal({ currentUser, onClose, onImported }: ImportModalProps) {
+export function ImportModal({ onClose, onImported }: ImportModalProps) {
   const [cohort, setCohort] = useState("");
   const [instructions, setInstructions] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -280,8 +279,18 @@ export function ImportModal({ currentUser, onClose, onImported }: ImportModalPro
       setParseError(notFoundMessage);
       return;
     }
+    if (rows.length > 5000) {
+      setParseError(`That's ${rows.length} rows. Split it into files of 5,000 or fewer and import each one.`);
+      return;
+    }
     setParseError("");
-    const outcome = await importLeads(rows, cohort.trim(), currentUser.employeeId, currentUser.name, instructions.trim());
+    let outcome: ImportResult;
+    try {
+      outcome = await importLeads(rows, cohort.trim(), instructions.trim());
+    } catch {
+      setParseError("The import didn't go through, so nothing was added. Check your connection and try again.");
+      return;
+    }
     setResult(outcome);
     onImported(outcome, cohort.trim());
   }
@@ -426,13 +435,20 @@ export function ImportModal({ currentUser, onClose, onImported }: ImportModalPro
                 {result.duplicates.length} number{result.duplicates.length === 1 ? "" : "s"} already existed and{" "}
                 {result.duplicates.length === 1 ? "was" : "were"} skipped:
                 <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
-                  {result.duplicates.map((d, i) => (
+                  {result.duplicates.slice(0, 50).map((d, i) => (
                     <li key={i}>
                       {d.row.name} ({d.row.phone}) — already in the system as {d.existing.name}
                     </li>
                   ))}
+                  {result.duplicates.length > 50 && <li>…and {result.duplicates.length - 50} more.</li>}
                 </ul>
               </>
+            )}
+            {result.skipped > 0 && (
+              <div style={{ marginTop: 6 }}>
+                {result.skipped} row{result.skipped === 1 ? " was" : "s were"} left out for having no name or no usable phone
+                number.
+              </div>
             )}
           </div>
         )}

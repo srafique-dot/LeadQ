@@ -12,6 +12,7 @@ import {
   claimLead,
   releaseLead,
   LeadClaimedError,
+  ApiError,
   LEVEL1,
   LEVEL2,
   QUICK_NOTES,
@@ -40,6 +41,24 @@ function ageLabel(m: number): string {
 
 function slaColor(m: number): string {
   return m <= 5 ? "#1B7A4B" : m <= 20 ? "#9A6206" : "#B4362A";
+}
+
+/** Pulling the queue is the heartbeat that keeps the agent "on the floor"
+ * and their open lead's claim alive (see api/_routing.ts heartbeat). Well
+ * inside CLAIM_TTL_MIN and PRESENCE_STALE_MIN. */
+const REFRESH_MS = 60_000;
+
+function todayKey(agentId: string): string {
+  const d = new Date();
+  return `leadq.booked.${agentId}.${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+
+function readBookedToday(agentId: string): number {
+  try {
+    return Number(localStorage.getItem(todayKey(agentId)) ?? 0) || 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** No SMS gateway exists — this generates the text and lets the agent copy
@@ -85,7 +104,10 @@ function nextRunTime(): string {
 }
 
 export function Agent() {
-  const { user, signOut } = useAuth();
+  const { user, realUser, signOut } = useAuth();
+  // A superadmin "viewing as" an agent sees their queue but must not claim,
+  // save or change presence: the server would record it all as the superadmin.
+  const viewingAs = !!user && !!realUser && realUser.employeeId !== user.employeeId;
 
   const [queue, setQueue] = useState<Lead[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -110,6 +132,12 @@ export function Agent() {
   const [entryOpen, setEntryOpen] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [savedLabel, setSavedLabel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [bookedToday, setBookedToday] = useState(() => (user ? readBookedToday(user.employeeId) : 0));
+  // Leads a claim just failed on, so auto-open moves past them instead of
+  // retrying the same one on every refresh.
+  const skipIds = useRef<Set<string>>(new Set());
+  const claiming = useRef(false);
   const [now, setNow] = useState(Date.now());
   const [cohortNoteOpen, setCohortNoteOpen] = useState(false);
   const [cohortNoteText, setCohortNoteText] = useState<string | null>(null);
@@ -148,28 +176,68 @@ export function Agent() {
   // agents who are marked available.
   useEffect(() => {
     if (!user) return;
-    setPresence(user.employeeId, "available")
-      .catch(() => undefined)
-      .then(() => refreshQueue());
-  }, [user?.employeeId]);
+    const start = viewingAs ? Promise.resolve() : setPresence(user.employeeId, "available").catch(() => undefined);
+    start.then(() => refreshQueue());
+    const t = setInterval(() => refreshQueue(), REFRESH_MS);
+    return () => clearInterval(t);
+  }, [user?.employeeId, viewingAs]);
+
+  // The lead on screen is always one this agent holds the claim on, so the
+  // outcome they log can't collide with anyone else's. When nothing is open,
+  // take the top of the queue (a lead they already hold comes first).
+  useEffect(() => {
+    if (!user || viewingAs || presence !== "available" || claiming.current) return;
+    if (currentId && queue.some((l) => l.id === currentId)) return;
+    const mine = queue.find((l) => l.claimedBy === user.employeeId && !skipIds.current.has(l.id));
+    const next = mine ?? queue.find((l) => !skipIds.current.has(l.id));
+    if (!next) {
+      if (currentId) setCurrentId(null);
+      return;
+    }
+    claiming.current = true;
+    claimLead(next.id)
+      .then(() => {
+        setCurrentId(next.id);
+        if (next.id !== currentId) resetDispositionState();
+      })
+      .catch(() => {
+        skipIds.current.add(next.id);
+        setCurrentId(null);
+      })
+      .finally(() => {
+        claiming.current = false;
+      });
+  }, [queue, currentId, presence, viewingAs, user?.employeeId]);
 
   if (!user) return null;
   const currentUser = user;
 
   function refreshQueue() {
-    getAgentQueue(currentUser.employeeId).then(setQueue);
+    getAgentQueue(currentUser.employeeId)
+      .then((q) => {
+        // Anything no longer in the queue has moved on; give it another
+        // chance if it ever comes back.
+        const ids = new Set(q.map((l) => l.id));
+        skipIds.current.forEach((id) => ids.has(id) || skipIds.current.delete(id));
+        setQueue(q);
+      })
+      .catch(() => undefined);
   }
 
   async function changePresence(next: Presence) {
+    if (viewingAs) return;
     setPresenceState(next);
-    if (next !== "available" && currentId) await releaseCurrent();
+    if (next !== "available" && currentId) {
+      await releaseCurrent();
+      setCurrentId(null);
+    }
     await setPresence(currentUser.employeeId, next).catch(() => undefined);
     refreshQueue();
   }
 
   async function releaseCurrent() {
-    if (!currentId) return;
-    await releaseLead(currentId, currentUser.employeeId).catch(() => undefined);
+    if (!currentId || viewingAs) return;
+    await releaseLead(currentId).catch(() => undefined);
   }
 
   /** Selecting a lead is the same thing as starting to work it, so the claim
@@ -177,10 +245,10 @@ export function Agent() {
    * juggling the ERP and the dialler. If someone else got there first the
    * server refuses and we say who has it. */
   async function openLead(id: string) {
-    if (id === currentId) return;
+    if (id === currentId || viewingAs) return;
     const previous = currentId;
     try {
-      await claimLead(id, currentUser.employeeId);
+      await claimLead(id);
     } catch (err) {
       if (err instanceof LeadClaimedError) {
         setClaimNotice(`${err.holderName} is already on that lead — picking it back up isn't possible until they finish.`);
@@ -189,16 +257,18 @@ export function Agent() {
       }
       throw err;
     }
-    if (previous) await releaseLead(previous, currentUser.employeeId).catch(() => undefined);
+    if (previous) await releaseLead(previous).catch(() => undefined);
     setClaimNotice("");
     setCurrentId(id);
     resetDispositionState();
   }
 
   async function handleSignOut() {
-    await releaseCurrent();
-    await setPresence(currentUser.employeeId, "off").catch(() => undefined);
-    signOut();
+    if (!viewingAs) {
+      await releaseCurrent();
+      await setPresence(currentUser.employeeId, "off").catch(() => undefined);
+    }
+    await signOut();
   }
 
   function resetDispositionState() {
@@ -214,7 +284,9 @@ export function Agent() {
     setDetailsOpen(false);
   }
 
-  const lead = currentId ? (queue.find((l) => l.id === currentId) ?? queue[0]) : queue[0];
+  // Viewing as someone shows their top lead read-only; otherwise only a lead
+  // this agent has claimed is ever on screen.
+  const lead = viewingAs ? queue[0] : currentId ? queue.find((l) => l.id === currentId) : undefined;
 
   const clockDate = new Date(now);
   const hours = clockDate.getHours();
@@ -250,20 +322,51 @@ export function Agent() {
         : "Saves and opens your next lead.";
 
   async function handleSave() {
-    if (!lead || blockers.length) return;
+    if (!lead || blockers.length || saving) return;
+    if (viewingAs) {
+      setClaimNotice("You're viewing as this agent. Outcomes can only be logged by the agent themselves.");
+      return;
+    }
     const l2Meta = LEVEL2.find((o) => o.code === l2);
     const l1Meta = LEVEL1.find((o) => o.code === l1);
     const label = (l2Meta ? l2Meta.label : l1Meta ? l1Meta.label : "Saved") + " — " + lead.name;
-    await saveDisposition(lead.id, {
-      l1: l1!,
-      l2,
-      note,
-      nextActionDate,
-      erpRefType: showAppt ? (l2 === "appointment_purchased" ? "invoice" : "booking") : "",
-      erpRefValue: showAppt ? erpRef : "",
-      agentId: currentUser.employeeId,
-      agentName: currentUser.name,
-    });
+    setSaving(true);
+    try {
+      await saveDisposition(lead.id, {
+        l1: l1!,
+        l2,
+        note,
+        nextActionDate,
+        erpRefType: showAppt ? (l2 === "appointment_purchased" ? "invoice" : "booking") : "",
+        erpRefValue: showAppt ? erpRef : "",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && (err.code === "not_your_claim" || err.code === "already_closed")) {
+        setClaimNotice(
+          err.code === "already_closed"
+            ? `${lead.name} was already closed, so this outcome wasn't saved. Moving you on.`
+            : `${lead.name} was moved off your screen (your team lead reassigned it, or it timed out and someone else picked it up), so this outcome wasn't saved.`,
+        );
+        setCurrentId(null);
+        resetDispositionState();
+        refreshQueue();
+      } else {
+        setClaimNotice("Couldn't save. Check your connection and press Save again. Nothing was lost.");
+      }
+      setSaving(false);
+      return;
+    }
+    if (l2 === "appointment_purchased" || l2 === "appointment_booked") {
+      const n = bookedToday + 1;
+      setBookedToday(n);
+      try {
+        localStorage.setItem(todayKey(currentUser.employeeId), String(n));
+      } catch {
+        /* storage blocked */
+      }
+    }
+    setSaving(false);
+    setClaimNotice("");
     setSavedAt(Date.now());
     setSavedLabel(label);
     setCurrentId(null);
@@ -271,9 +374,9 @@ export function Agent() {
     refreshQueue();
   }
 
-  async function handleEscalateConfirm() {
-    if (!lead) return;
-    await escalateLead(lead.id, currentUser.employeeId, currentUser.name);
+  async function handleEscalateConfirm(reason: string) {
+    if (!lead || viewingAs) return;
+    await escalateLead(lead.id, reason);
     setEscalateOpen(false);
     setCurrentId(null);
     resetDispositionState();
@@ -317,7 +420,7 @@ export function Agent() {
           </div>
           <div className={styles.statPair}>
             <span className={styles.statNum} style={{ color: "var(--success)" }}>
-              {queue.filter((l) => l.status === "booked").length}
+              {bookedToday}
             </span>
             <span className={styles.statLabel}>booked</span>
           </div>
@@ -408,9 +511,6 @@ export function Agent() {
           <button type="button" className={styles.smallBtn} onClick={() => setSearchOpen(true)}>
             Find a lead
           </button>
-          <button type="button" className={styles.smallBtn} onClick={() => alert("Callback logged.")}>
-            Log a callback
-          </button>
         </div>
       </aside>
 
@@ -426,8 +526,20 @@ export function Agent() {
 
         {!lead ? (
           <div className={styles.body}>
+            {claimNotice && (
+              <div
+                className={styles.card}
+                style={{ borderColor: "var(--warning)", color: "var(--ink-secondary)", padding: "12px 16px", marginBottom: 12 }}
+              >
+                {claimNotice}
+              </div>
+            )}
             <div className={styles.card} style={{ textAlign: "center" }}>
-              Nothing waiting right now. Nice work.
+              {presence === "break"
+                ? "You're on break. New leads won't come to you until you're back."
+                : queue.length > 0
+                  ? "Opening your next lead…"
+                  : "Nothing waiting right now. Nice work."}
             </div>
           </div>
         ) : (
@@ -813,12 +925,15 @@ export function Agent() {
                   <div className={styles.saveRow}>
                     <button
                       type="button"
-                      disabled={blockers.length > 0}
+                      disabled={blockers.length > 0 || saving}
                       className={styles.saveBtn}
-                      style={{ background: blockers.length ? "var(--disabled-btn)" : "var(--primary)", opacity: blockers.length ? 0.75 : 1 }}
+                      style={{
+                        background: blockers.length || saving ? "var(--disabled-btn)" : "var(--primary)",
+                        opacity: blockers.length || saving ? 0.75 : 1,
+                      }}
                       onClick={handleSave}
                     >
-                      Save &amp; next lead
+                      {saving ? "Saving…" : "Save & next lead"}
                     </button>
                     <div className={styles.saveStatus} style={{ color: blockers.length ? "var(--danger)" : "var(--ink-faint)" }}>
                       {statusText}

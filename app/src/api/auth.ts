@@ -1,14 +1,32 @@
 import type { Account, Invite, Presence, Role } from "./types";
 
 /**
- * Real backend calls. Every function here mirrors the shape the mock had in
- * phase 1 — callers already treat this as async-safe where it matters — so
- * this file is the only thing that changed to go from localStorage to the
- * live API.
+ * Real backend calls. The session itself is an httpOnly cookie set by the
+ * server, so nothing here can read or forge it. Only the "remembered on this
+ * device" hint (name and ID for the sign-in screen) lives in localStorage.
  */
 
-const SESSION_KEY = "umch.session";
 const REMEMBERED_KEY = "umch.rememberedDevice";
+/** Fired on any 401 from the API so AuthContext can drop back to sign-in. */
+export const UNAUTHENTICATED_EVENT = "leadq:unauthenticated";
+
+let interceptorInstalled = false;
+/** Wraps fetch once at startup: a session that expires or is revoked (password
+ * reset, account deactivated) mid-shift sends the person to sign-in instead of
+ * leaving every screen silently failing. */
+export function installSessionInterceptor() {
+  if (interceptorInstalled) return;
+  interceptorInstalled = true;
+  const original = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const res = await original(input, init);
+    const url = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+    if (res.status === 401 && url.includes("/api/") && !url.includes("/api/auth")) {
+      window.dispatchEvent(new Event(UNAUTHENTICATED_EVENT));
+    }
+    return res;
+  };
+}
 
 interface RememberedAccount {
   employeeId: string;
@@ -17,35 +35,33 @@ interface RememberedAccount {
 }
 
 export function getRememberedAccount(): RememberedAccount | null {
-  const raw = localStorage.getItem(REMEMBERED_KEY);
-  if (!raw) return null;
   try {
-    return JSON.parse(raw) as RememberedAccount;
+    const raw = localStorage.getItem(REMEMBERED_KEY);
+    return raw ? (JSON.parse(raw) as RememberedAccount) : null;
   } catch {
     return null;
   }
 }
 
 export function clearRememberedDevice() {
-  localStorage.removeItem(REMEMBERED_KEY);
-}
-
-function rememberDevice(account: Account) {
-  const remembered: RememberedAccount = { employeeId: account.employeeId, name: account.name, roleLabel: account.roleLabel };
-  localStorage.setItem(REMEMBERED_KEY, JSON.stringify(remembered));
-}
-
-function setSession(employeeId: string, stayOnDevice: boolean) {
-  if (stayOnDevice) {
-    localStorage.setItem(SESSION_KEY, employeeId);
-    sessionStorage.removeItem(SESSION_KEY);
-  } else {
-    sessionStorage.setItem(SESSION_KEY, employeeId);
-    localStorage.removeItem(SESSION_KEY);
+  try {
+    localStorage.removeItem(REMEMBERED_KEY);
+  } catch {
+    /* storage blocked */
   }
 }
 
-export type SignInError = "empty_id" | "unknown_id" | "empty_password" | "wrong_password" | "network";
+function rememberDevice(account: Account, stayOnDevice: boolean) {
+  try {
+    if (!stayOnDevice) return void localStorage.removeItem(REMEMBERED_KEY);
+    const remembered: RememberedAccount = { employeeId: account.employeeId, name: account.name, roleLabel: account.roleLabel };
+    localStorage.setItem(REMEMBERED_KEY, JSON.stringify(remembered));
+  } catch {
+    /* storage blocked */
+  }
+}
+
+export type SignInError = "empty_id" | "unknown_id" | "empty_password" | "wrong_password" | "locked" | "network";
 
 export async function signIn(
   employeeId: string,
@@ -61,7 +77,7 @@ export async function signIn(
     const res = await fetch("/api/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "sign-in", employeeId: id, password }),
+      body: JSON.stringify({ action: "sign-in", employeeId: id, password, stayOnDevice }),
     });
     json = await res.json();
   } catch {
@@ -70,8 +86,7 @@ export async function signIn(
 
   if (!json.ok || !json.account) return { ok: false, error: json.error ?? "network" };
 
-  rememberDevice(json.account);
-  setSession(json.account.employeeId, stayOnDevice);
+  rememberDevice(json.account, stayOnDevice);
   return { ok: true, account: json.account };
 }
 
@@ -87,7 +102,7 @@ export async function setPassword(
     const res = await fetch("/api/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "change-password", employeeId: account.employeeId, newPassword }),
+      body: JSON.stringify({ action: "change-password", newPassword, stayOnDevice }),
     });
     json = await res.json();
   } catch {
@@ -95,21 +110,32 @@ export async function setPassword(
   }
   if (!json.ok) return { ok: false, error: json.error ?? "network" };
 
-  rememberDevice(account);
-  setSession(account.employeeId, stayOnDevice);
+  rememberDevice(account, stayOnDevice);
   return { ok: true };
 }
 
+/** Null when there's no valid session cookie (never signed in, expired, or
+ * revoked). A network failure also lands here, as signed out. */
 export async function getCurrentUser(): Promise<Account | null> {
-  const id = sessionStorage.getItem(SESSION_KEY) ?? localStorage.getItem(SESSION_KEY);
-  if (!id) return null;
-  const accounts = await listAccounts();
-  return accounts.find((a) => a.employeeId === id) ?? null;
+  try {
+    const res = await fetch("/api/auth");
+    if (!res.ok) return null;
+    return (await res.json()) as Account;
+  } catch {
+    return null;
+  }
 }
 
-export function signOut() {
-  sessionStorage.removeItem(SESSION_KEY);
-  localStorage.removeItem(SESSION_KEY);
+export async function signOut(): Promise<void> {
+  try {
+    await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "sign-out" }),
+    });
+  } catch {
+    /* the cookie expires on its own */
+  }
 }
 
 /** Unambiguous alphabet (no I/l/1/O/0), starts with a capital and a digit,
@@ -145,7 +171,6 @@ export interface NewInviteInput {
   role: Role;
   facility: string;
   callingNumber: string;
-  createdBy: string;
 }
 
 /** Superadmin fixes role/facility/calling-number up front; the invitee fills
@@ -204,7 +229,7 @@ export async function claimInvite(
     const res = await fetch(`/api/invites/${token}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
+      body: JSON.stringify({ ...input, stayOnDevice }),
     });
     json = await res.json();
     if (!res.ok) return { ok: false, error: (json as { error?: ClaimInviteError }).error ?? "network" };
@@ -213,8 +238,7 @@ export async function claimInvite(
   }
   if (!json.account) return { ok: false, error: "network" };
 
-  rememberDevice(json.account);
-  setSession(json.account.employeeId, stayOnDevice);
+  rememberDevice(json.account, stayOnDevice);
   return { ok: true, account: json.account };
 }
 
