@@ -20,7 +20,6 @@ interface AddLeadModalProps {
   onSaved: (message: string) => void;
 }
 
-const HOSPITALS = ["UMCH Main", "Medix Uttara", "MA Rashid Clinic"];
 const TIME_SLOTS = ["Morning", "Afternoon", "Evening"];
 /** Shown until the live, superadmin-managed list loads — keeps the form
  * usable on a slow connection instead of an empty dropdown. */
@@ -132,7 +131,6 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [phone, setPhone] = useState("");
   const [entryMode, setEntryMode] = useState<EntryMode>(null);
   const [name, setName] = useState("");
-  const [facility, setFacility] = useState("");
   const [area, setArea] = useState("");
   const [doctor, setDoctor] = useState("");
   const [dept, setDept] = useState("");
@@ -199,6 +197,11 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
     if (c.name && !name.trim()) setName(c.name);
   }
 
+  // A channel that's itself a field campaign (its name says so) needs to
+  // know WHICH one — "Door2Door Campaign" on its own doesn't tell two
+  // different activations apart in the coverage report.
+  const campaignRequired = /campaign|activation/i.test(source);
+
   const blockers: string[] = [];
   if (!name.trim()) blockers.push("Write the caller’s name.");
   else if (digits.length < 10) blockers.push("Write the full phone number.");
@@ -207,6 +210,8 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
     blockers.push(svc.orPattern ? "Write the doctor they asked for, or the department if they did not name one." : `Write ${svc.primaryLabel.toLowerCase()}.`);
   else if (forOther && !patient.trim()) blockers.push("Write the patient’s name.");
   else if (urgent && !urgentReason.trim()) blockers.push("Say why this one jumps the queue.");
+  else if (campaignRequired && !campaign.trim())
+    blockers.push(`Name the campaign or activation — required for ${source}.`);
 
   const isMerging = !!dup && entryMode === "merge";
   const blocked = blockers.length > 0;
@@ -226,7 +231,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
       return dup.name;
     }
     const created = await createLead(
-      { name, phone, leadType, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: campaign.trim() },
+      { name, phone, leadType, facility: "", area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: campaign.trim() },
       currentUser.employeeId,
       currentUser.name,
       source,
@@ -254,7 +259,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
     setForOther(false);
     setPatient("");
     setNote("");
-    // source, leadType, facility and campaign are left as-is — a rapid-entry batch usually shares them.
+    // source, leadType and campaign are left as-is — a rapid-entry batch usually shares them.
   }
 
   async function handleSave() {
@@ -338,16 +343,26 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
           </div>
 
           <label className={styles.field}>
-            <span className={styles.fieldLabel}>Campaign or activation (optional)</span>
+            <span className={styles.fieldLabel}>
+              Campaign or activation{" "}
+              {campaignRequired ? (
+                <span style={{ fontSize: 13, fontWeight: 500, color: "var(--danger)" }}>— required for {source}</span>
+              ) : (
+                <span className={styles.muted}>(optional)</span>
+              )}
+            </span>
             <input
               value={campaign}
               onChange={(e) => setCampaign(e.target.value)}
               placeholder="e.g. Door-to-door — Uttara Sept, Community health fair"
               className={styles.textInput}
+              style={campaignRequired && !campaign.trim() ? { borderColor: "#E0A9A2" } : undefined}
             />
             <span style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 4, display: "block" }}>
-              Only for a named field campaign or activation — leave blank for a regular lead. Stays the same for the
-              next lead you add, so it only needs typing once per batch.
+              {campaignRequired
+                ? "This channel is itself a field campaign — name which one, so it can be told apart from the others."
+                : "Only for a named field campaign or activation — leave blank for a regular lead."}{" "}
+              Stays the same for the next lead you add, so it only needs typing once per batch.
             </span>
           </label>
 
@@ -449,31 +464,17 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             </label>
           </div>
 
-          <div className={styles.twoCol}>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>
-                Which hospital / <Bn>কোন হাসপাতাল</Bn>
-              </span>
-              <SearchableSelect
-                value={facility}
-                onChange={setFacility}
-                options={HOSPITALS.map((h) => ({ value: h, label: h }))}
-                placeholder="Choose one…"
-                triggerClassName={styles.textInput}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.fieldLabel}>
-                Area / <Bn>এলাকা</Bn>
-              </span>
-              <input
-                value={area}
-                onChange={(e) => setArea(e.target.value)}
-                placeholder="Where they live"
-                className={styles.textInput}
-              />
-            </label>
-          </div>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>
+              Area / <Bn>এলাকা</Bn>
+            </span>
+            <input
+              value={area}
+              onChange={(e) => setArea(e.target.value)}
+              placeholder="Where they live"
+              className={styles.textInput}
+            />
+          </label>
 
           <div className={styles.twoCol}>
             <label className={styles.field}>
