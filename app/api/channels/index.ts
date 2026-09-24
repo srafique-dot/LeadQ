@@ -51,6 +51,16 @@ export default route({
       return void res.status(200).json(serialize(rows[0]));
     }
 
+    if (req.query.action === "delete") {
+      const { name } = body<{ name: string }>(req);
+      // Leads keep whatever channel text they were tagged with — it's a
+      // plain column, not a foreign key — so deleting the source here only
+      // stops it being offered on new leads. Nothing else needs updating.
+      const { rowCount } = await query("delete from channels where name = $1", [name]);
+      if (!rowCount) return void res.status(404).json({ error: "not_found" });
+      return void res.status(200).json({ ok: true });
+    }
+
     if (req.query.action === "set-setting") {
       const { key, value } = body<SetSettingBody>(req);
       const { rows } = await query<{ key: string; value: string }>(

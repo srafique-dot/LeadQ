@@ -153,6 +153,16 @@ async function main() {
   check("agent cannot create an invite → 403", agentInvite.status === 403);
   const leadChannel = await call(channels as Handler, { method: "POST", body: { action: "create", name: "X" }, cookie: leadCookie });
   check("team lead cannot change channels → 403", leadChannel.status === 403);
+  const newSource = await call(channels as Handler, { method: "POST", body: { name: "Throwaway Source" }, cookie: superCookie });
+  check("superadmin creates a channel", newSource.status === 201);
+  const leadDelete = await call(channels as Handler, { method: "POST", query: { action: "delete" }, body: { name: "Throwaway Source" }, cookie: leadCookie });
+  check("team lead cannot delete a channel → 403", leadDelete.status === 403);
+  const superDelete = await call(channels as Handler, { method: "POST", query: { action: "delete" }, body: { name: "Throwaway Source" }, cookie: superCookie });
+  check("superadmin deletes it", superDelete.status === 200);
+  const channelsAfter = await call(channels as Handler, { cookie: superCookie });
+  check("it's gone from the list", !channelsAfter.json.some((c: any) => c.name === "Throwaway Source"));
+  const deleteMissing = await call(channels as Handler, { method: "POST", query: { action: "delete" }, body: { name: "Never Existed" }, cookie: superCookie });
+  check("deleting one that doesn't exist → 404", deleteMissing.status === 404);
   const otherPresence = await call(accountAction as Handler, { method: "POST", query: { id: "AGENT_004", action: "presence" }, body: { presence: "off" }, cookie: agentCookie });
   check("agent cannot set someone else's presence → 403", otherPresence.status === 403);
   const selfDeactivate = await call(accountAction as Handler, { method: "POST", query: { id: "SUPER_001", action: "toggle-active" }, body: { active: false }, cookie: superCookie });

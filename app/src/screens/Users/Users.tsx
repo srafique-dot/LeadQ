@@ -10,7 +10,7 @@ import {
   createInvite,
   listInvites,
 } from "../../api/auth";
-import { listChannels, createChannel, setChannelActive } from "../../api/channels";
+import { listChannels, createChannel, setChannelActive, deleteChannel } from "../../api/channels";
 import { getSettings, setSetting, type SmsTemplateKey } from "../../api/settings";
 import { SearchableSelect } from "../../components/SearchableSelect";
 import type { Channel, Invite, Role } from "../../api/types";
@@ -51,6 +51,7 @@ export function Users() {
 
   const [channels, setChannels] = useState<Channel[]>([]);
   const [newChannel, setNewChannel] = useState("");
+  const [deleteChannelTarget, setDeleteChannelTarget] = useState<string | null>(null);
 
   const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
   const [smsDrafts, setSmsDrafts] = useState<Record<string, string>>({});
@@ -393,10 +394,40 @@ export function Users() {
                   >
                     {c.active ? "Hide from form" : "Show on form"}
                   </button>
+                  {deleteChannelTarget === c.name ? (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.actionBtn}
+                        style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+                        onClick={async () => {
+                          await deleteChannel(c.name);
+                          setDeleteChannelTarget(null);
+                          refreshChannels();
+                        }}
+                      >
+                        Confirm delete
+                      </button>
+                      <button type="button" className={styles.actionBtn} onClick={() => setDeleteChannelTarget(null)}>
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className={styles.actionBtn} onClick={() => setDeleteChannelTarget(c.name)}>
+                      Delete
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
             {channels.length === 0 && <div className={styles.emptyRow}>No lead sources yet.</div>}
+            {channels.length > 0 && (
+              <div style={{ padding: "12px 20px", fontSize: 12.5, color: "var(--ink-faint)", borderTop: "1px solid var(--border-light)" }}>
+                Deleting a source only removes it from the Add-lead form — leads already tagged with it keep that
+                tag, and still show up correctly in reports. Hide it instead if you just want to stop it being
+                picked for new leads.
+              </div>
+            )}
           </div>
         )}
 

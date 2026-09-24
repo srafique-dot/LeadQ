@@ -24,3 +24,9 @@ export function createChannel(name: string, createdBy: string): Promise<Channel>
 export function setChannelActive(name: string, active: boolean): Promise<Channel> {
   return postJson("/api/channels?action=toggle", { name, active });
 }
+
+/** Leads already tagged with this channel keep that text regardless —
+ * this only removes it from the list offered on new leads. */
+export async function deleteChannel(name: string): Promise<void> {
+  await postJson("/api/channels?action=delete", { name });
+}
