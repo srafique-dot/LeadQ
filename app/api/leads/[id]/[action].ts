@@ -4,12 +4,12 @@ import { serializeLead, dhaka, type LeadRow } from "../../_leads.js";
 import { claimLead, claimHolder, RETRY_AFTER_MIN } from "../../_routing.js";
 import { allow } from "../../_auth.js";
 
-const LEVEL1 = new Set(["connected", "not_responding", "busy", "number_off", "invalid_number", "call_rejected"]);
+const LEVEL1 = new Set(["connected", "not_responding", "busy", "number_off", "invalid_number", "call_rejected", "international"]);
 const LEVEL2 = new Set([
   "appointment_purchased", "appointment_booked", "info_given", "callback_later",
-  "ni_price", "ni_distance", "ni_elsewhere", "wrong_person", "duplicate",
+  "ni_price", "ni_distance", "ni_elsewhere", "wrong_person", "duplicate", "already_handled",
 ]);
-const TERMINAL = new Set(["appointment_purchased", "appointment_booked", "ni_price", "ni_distance", "ni_elsewhere", "wrong_person", "duplicate"]);
+const TERMINAL = new Set(["appointment_purchased", "appointment_booked", "ni_price", "ni_distance", "ni_elsewhere", "wrong_person", "duplicate", "already_handled"]);
 const WIN = new Set(["appointment_purchased", "appointment_booked"]);
 const FAILED = new Set(["not_responding", "busy", "number_off", "call_rejected"]);
 const MAX_ATTEMPTS = 4;
@@ -27,7 +27,13 @@ const L2_LABELS: Record<string, string> = {
   ni_elsewhere: "Not interested — went elsewhere",
   wrong_person: "Wrong person",
   duplicate: "Same lead twice",
+  already_handled: "Already has an appointment / already a patient",
 };
+
+/** No outbound line can dial these — the fixed reason a disposition of
+ * "international" writes when it auto-escalates (see the disposition
+ * case below), shown to the team lead exactly like a manual escalation. */
+const INTERNATIONAL_ESCALATION_REASON = "International number — agents can't dial this. Needs a follow-up by email.";
 
 
 interface MergeBody {
@@ -197,6 +203,13 @@ export default route({
           } else if (b.l1 === "invalid_number") {
             status = "closed";
             detail = `Wrong number · ${dhaka(now)}`;
+          } else if (b.l1 === "international") {
+            // Never actually dialled — status is left as it was. Escalating
+            // is what pulls it out of every agent queue (both queue queries
+            // filter "not escalated" regardless of status), so a supervisor
+            // sees it and follows up by email instead of an agent getting it
+            // back and being stuck the same way.
+            detail = `International number — routed to your supervisor · ${dhaka(now)}`;
           } else if (b.l2 === "callback_later") {
             status = "trying";
             nextActionDate = b.nextActionDate;
@@ -211,6 +224,7 @@ export default route({
           // goes home to its owner rather than being quietly taken over.
           const wasLoan = !!lead.assigned_to && lead.assigned_to !== me;
           const nextAssignee = wasLoan ? lead.assigned_to : me;
+          const autoEscalate = b.l1 === "international";
 
           const { rows } = await client.query<LeadRow>(
             `update leads set status = $1, attempt = $2, detail = $3, next_action_date = $4,
@@ -218,7 +232,11 @@ export default route({
                erp_ref_value = case when $6 <> '' then $6 else erp_ref_value end,
                assigned_to = $8, assigned_at = now(),
                claimed_by = null, claimed_at = null,
-               retry_after = $9
+               retry_after = $9,
+               escalated = case when $10 then true else escalated end,
+               escalated_by = case when $10 then $11 else escalated_by end,
+               escalated_at = case when $10 then now() else escalated_at end,
+               escalated_reason = case when $10 then $12 else escalated_reason end
              where id = $7 returning *`,
             [
               status,
@@ -230,6 +248,9 @@ export default route({
               id,
               nextAssignee,
               retryAfter,
+              autoEscalate,
+              `${me} ${session.name}`,
+              INTERNATIONAL_ESCALATION_REASON,
             ],
           );
           await client.query("commit");
@@ -260,9 +281,19 @@ export default route({
 
       case "unescalate": {
         if (!allow(res, session, "admin", "superadmin")) return;
+        // Default: back to the queue, same as always. resolution "closed" is
+        // for an escalation handled outside the calling queue entirely (an
+        // emailed international patient, a complaint settled by phone) —
+        // sending it back to an agent who can't do anything more with it
+        // would just land it right back here.
+        const { resolution } = body<{ resolution?: "closed" }>(req);
+        const closeIt = resolution === "closed";
         const { rows } = await query<LeadRow>(
-          "update leads set escalated = false, escalated_by = '', escalated_at = null, escalated_reason = '' where id = $1 returning *",
-          [id],
+          `update leads set escalated = false, escalated_by = '', escalated_at = null, escalated_reason = '',
+                  status = case when $2 then 'closed'::lead_status else status end,
+                  detail = case when $2 then $3 else detail end
+            where id = $1 returning *`,
+          [id, closeIt, `Handled outside the calling queue · ${dhaka(new Date())}`],
         );
         if (!rows[0]) return void res.status(404).json({ error: "not_found" });
         return void res.status(200).json(await serializeLead(rows[0]));

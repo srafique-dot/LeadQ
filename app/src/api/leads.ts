@@ -139,6 +139,7 @@ export const LEVEL1: { code: Level1Code; label: string }[] = [
   { code: "number_off", label: "Phone switched off" },
   { code: "invalid_number", label: "Wrong number" },
   { code: "call_rejected", label: "They cut the call" },
+  { code: "international", label: "International number — can't dial" },
 ];
 
 export const LEVEL2: { code: Level2Code; label: string; kind: "win" | "open" | "lost" }[] = [
@@ -151,6 +152,7 @@ export const LEVEL2: { code: Level2Code; label: string; kind: "win" | "open" | "
   { code: "ni_elsewhere", label: "Not interested — went elsewhere", kind: "lost" },
   { code: "wrong_person", label: "Wrong person", kind: "lost" },
   { code: "duplicate", label: "Same lead twice", kind: "lost" },
+  { code: "already_handled", label: "Already has an appointment / already a patient", kind: "lost" },
 ];
 
 export const QUICK_NOTES: Record<string, string[]> = {
@@ -168,9 +170,10 @@ export const QUICK_NOTES: Record<string, string[]> = {
   number_off: ["Switched off all day"],
   invalid_number: ["Digit count wrong"],
   call_rejected: ["Cut immediately"],
+  already_handled: ["Already booked directly", "Already seen the doctor", "Already admitted"],
 };
 
-export const TERMINAL: Level2Code[] = ["appointment_purchased", "appointment_booked", "ni_price", "ni_distance", "ni_elsewhere", "wrong_person", "duplicate"];
+export const TERMINAL: Level2Code[] = ["appointment_purchased", "appointment_booked", "ni_price", "ni_distance", "ni_elsewhere", "wrong_person", "duplicate", "already_handled"];
 export const FAILED: Level1Code[] = ["not_responding", "busy", "number_off", "call_rejected"];
 export const MAX_ATTEMPTS = 4;
 
@@ -241,8 +244,13 @@ export function splitMergedLead(leadId: string): Promise<Lead> {
   return postJson(`/api/leads/${leadId}/split`);
 }
 
-export function unescalateLead(leadId: string): Promise<Lead> {
-  return postJson(`/api/leads/${leadId}/unescalate`);
+/** Default returns it to the queue, same as before. `resolution: "closed"`
+ * is for an escalation a supervisor handled outside the calling queue
+ * entirely (an emailed international patient, a complaint settled by
+ * phone themselves) — closes the lead instead of sending it back to an
+ * agent who can't do anything more with it. */
+export function unescalateLead(leadId: string, resolution?: "closed"): Promise<Lead> {
+  return postJson(`/api/leads/${leadId}/unescalate`, resolution ? { resolution } : undefined);
 }
 
 // ---- Supervisor: live floor (app data only — no call durations, no dial counts) ----

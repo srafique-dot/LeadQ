@@ -6,10 +6,10 @@ create extension if not exists pgcrypto;
 
 create type role as enum ('requester', 'agent', 'admin', 'superadmin');
 create type lead_status as enum ('waiting', 'trying', 'booked', 'closed');
-create type level1_code as enum ('connected', 'not_responding', 'busy', 'number_off', 'invalid_number', 'call_rejected');
+create type level1_code as enum ('connected', 'not_responding', 'busy', 'number_off', 'invalid_number', 'call_rejected', 'international');
 create type level2_code as enum (
   'appointment_purchased', 'appointment_booked', 'info_given', 'callback_later',
-  'ni_price', 'ni_distance', 'ni_elsewhere', 'wrong_person', 'duplicate'
+  'ni_price', 'ni_distance', 'ni_elsewhere', 'wrong_person', 'duplicate', 'already_handled'
 );
 create type lead_type as enum (
   'appointment', 'vaccine_query', 'lab_test', 'radiology', 'investigative_procedure',

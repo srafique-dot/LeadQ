@@ -326,11 +326,13 @@ export function Agent() {
   const exhausting = isFailedPick && !!lead && lead.attempt >= MAX_ATTEMPTS;
   const statusText = blockers.length
     ? blockers[0]
-    : requeued
-      ? `Goes to the back of the queue — comes back around ${nextRunTime()}.`
-      : exhausting
-        ? "Call 4 of 4 — this closes the lead."
-        : "Saves and opens your next lead.";
+    : l1 === "international"
+      ? "Sends it to your team lead for an email follow-up — this leaves your queue."
+      : requeued
+        ? `Goes to the back of the queue — comes back around ${nextRunTime()}.`
+        : exhausting
+          ? "Call 4 of 4 — this closes the lead."
+          : "Saves and opens your next lead.";
 
   async function handleSave() {
     if (!lead || blockers.length || saving) return;

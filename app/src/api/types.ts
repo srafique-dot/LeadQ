@@ -56,7 +56,7 @@ export type LeadType =
   | "international_patient"
   | "general_inquiry";
 
-export type Level1Code = "connected" | "not_responding" | "busy" | "number_off" | "invalid_number" | "call_rejected";
+export type Level1Code = "connected" | "not_responding" | "busy" | "number_off" | "invalid_number" | "call_rejected" | "international";
 export type Level2Code =
   | "appointment_purchased"
   | "appointment_booked"
@@ -66,7 +66,8 @@ export type Level2Code =
   | "ni_distance"
   | "ni_elsewhere"
   | "wrong_person"
-  | "duplicate";
+  | "duplicate"
+  | "already_handled";
 
 export interface DispositionRecord {
   attempt: number;

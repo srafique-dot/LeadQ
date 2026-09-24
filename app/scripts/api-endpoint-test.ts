@@ -263,6 +263,25 @@ async function main() {
   const agentUnesc = await call(LA, { method: "POST", query: { id: second.id, action: "unescalate" }, cookie: agentCookie });
   check("agent cannot un-escalate → 403", agentUnesc.status === 403);
 
+  console.log("\nInternational number auto-escalates, and can be closed instead of reopened");
+  const intlLead = await call(L, { method: "POST", body: { name: "Overseas Caller", phone: "+447000000099" }, cookie: reqCookie });
+  await call(LA, { method: "POST", query: { id: intlLead.json.id, action: "claim" }, cookie: agentCookie });
+  const intlDisp = await call(LA, { method: "POST", query: { id: intlLead.json.id, action: "disposition" }, body: { l1: "international", l2: null, note: "" }, cookie: agentCookie });
+  check("international disposition saves without needing an l2", intlDisp.status === 200, String(intlDisp.status));
+  check("it auto-escalates with a fixed reason", intlDisp.json.escalated === true && intlDisp.json.escalatedReason.includes("International"));
+  check("status is left alone, not force-closed", intlDisp.json.status === "waiting");
+  const intlQueueCheck = await call(L, { query: { queue: "1", agentId: "AGENT_003" }, cookie: agentCookie });
+  check("it disappears from the agent queue like any escalation", !intlQueueCheck.json.some((l: any) => l.id === intlLead.json.id));
+  const closeIt = await call(LA, { method: "POST", query: { id: intlLead.json.id, action: "unescalate" }, body: { resolution: "closed" }, cookie: leadCookie });
+  check("team lead can close it instead of reopening it", closeIt.status === 200 && closeIt.json.status === "closed" && closeIt.json.escalated === false);
+
+  console.log("\n'Already has an appointment' outcome");
+  const dupPatient = await call(L, { method: "POST", body: { name: "Existing Patient", phone: "01799900001" }, cookie: reqCookie });
+  await call(LA, { method: "POST", query: { id: dupPatient.json.id, action: "claim" }, cookie: agentCookie });
+  const alreadyDisp = await call(LA, { method: "POST", query: { id: dupPatient.json.id, action: "disposition" }, body: { l1: "connected", l2: "already_handled", note: "" }, cookie: agentCookie });
+  check("saves as a terminal, non-booked outcome", alreadyDisp.status === 200 && alreadyDisp.json.status === "closed");
+  check("detail names the outcome", alreadyDisp.json.detail.includes("Already has an appointment"));
+
   console.log("\nRequester default channel");
   const invWithChannel = await call(invites as Handler, {
     method: "POST",

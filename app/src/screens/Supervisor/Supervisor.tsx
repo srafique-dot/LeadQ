@@ -436,17 +436,30 @@ export function Supervisor() {
                       {l.escalatedAt &&
                         ` · ${new Date(l.escalatedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false })}`}
                     </div>
-                    <button
-                      type="button"
-                      className={styles.alertBtn}
-                      onClick={async () => {
-                        await unescalateLead(l.id);
-                        setFlash(`${l.name} returned to the queue.`);
-                        refreshLive();
-                      }}
-                    >
-                      Return to queue
-                    </button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        className={styles.alertBtn}
+                        onClick={async () => {
+                          await unescalateLead(l.id);
+                          setFlash(`${l.name} returned to the queue.`);
+                          refreshLive();
+                        }}
+                      >
+                        Return to queue
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.alertBtn}
+                        onClick={async () => {
+                          await unescalateLead(l.id, "closed");
+                          setFlash(`${l.name} closed — handled outside the calling queue.`);
+                          refreshLive();
+                        }}
+                      >
+                        Close (handled outside calls)
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {escalated.length === 0 && <div className={styles.emptyRow}>Nothing escalated right now.</div>}
