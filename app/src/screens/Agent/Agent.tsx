@@ -133,6 +133,7 @@ export function Agent() {
   const [note, setNote] = useState("");
   const [nextActionDate, setNextActionDate] = useState("");
   const [erpRef, setErpRef] = useState("");
+  const [patientKind, setPatientKind] = useState<"new" | "existing" | null>(null);
   const [smsCopied, setSmsCopied] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
@@ -292,6 +293,7 @@ export function Agent() {
     setNote("");
     setNextActionDate("");
     setErpRef("");
+    setPatientKind(null);
     setSmsCopied(false);
     setDetailsOpen(false);
   }
@@ -312,6 +314,7 @@ export function Agent() {
   const notesRequired = !!l2 && l2.startsWith("ni_");
 
   const erpRefRequired = showAppt && !!lead?.patientName;
+  const patientKindRequired = showAppt;
 
   const blockers: string[] = [];
   if (!l1) blockers.push("Pick what happened on the call.");
@@ -321,6 +324,8 @@ export function Agent() {
   else if (smsRequired && !smsCopied) blockers.push("Copy the SMS text first — this is call 3.");
   else if (erpRefRequired && !erpRef.trim())
     blockers.push("Write the ERP reference — this booking is for someone else, so it's the only way to match it back to them later.");
+  else if (patientKindRequired && !patientKind)
+    blockers.push("Say whether they were already a patient — new patients need registering on the ERP before the booking counts.");
 
   const requeued = isFailedPick && !!lead && lead.attempt < MAX_ATTEMPTS;
   const exhausting = isFailedPick && !!lead && lead.attempt >= MAX_ATTEMPTS;
@@ -352,6 +357,7 @@ export function Agent() {
         nextActionDate,
         erpRefType: showAppt ? (l2 === "appointment_purchased" ? "invoice" : "booking") : "",
         erpRefValue: showAppt ? erpRef : "",
+        existingPatient: showAppt ? patientKind === "existing" : undefined,
       });
     } catch (err) {
       if (err instanceof ApiError && (err.code === "not_your_claim" || err.code === "already_closed")) {
@@ -807,6 +813,30 @@ export function Agent() {
 
                   {showAppt && (
                     <div className={styles.sectionDivider}>
+                      <div className={styles.refField} style={{ marginBottom: 14 }}>
+                        <span className={styles.refLabel}>
+                          Were they already a patient here?{" "}
+                          <span style={{ fontSize: 13, fontWeight: 500, color: "var(--danger)" }}>— required</span>
+                        </span>
+                        <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                          <button
+                            type="button"
+                            className={styles.smallBtn}
+                            style={patientKind === "new" ? { background: "var(--primary-tint)", borderColor: "var(--primary)", color: "var(--primary-dark)" } : undefined}
+                            onClick={() => setPatientKind("new")}
+                          >
+                            New — registered them on the ERP
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.smallBtn}
+                            style={patientKind === "existing" ? { background: "var(--primary-tint)", borderColor: "var(--primary)", color: "var(--primary-dark)" } : undefined}
+                            onClick={() => setPatientKind("existing")}
+                          >
+                            Already a patient
+                          </button>
+                        </div>
+                      </div>
                       <label className={styles.refField}>
                         <span className={styles.refLabel}>
                           {l2 === "appointment_purchased" ? "Invoice number from the ERP" : "Booking ID from the ERP"}{" "}

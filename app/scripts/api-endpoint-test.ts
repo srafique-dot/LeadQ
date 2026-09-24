@@ -282,6 +282,40 @@ async function main() {
   check("saves as a terminal, non-booked outcome", alreadyDisp.status === 200 && alreadyDisp.json.status === "closed");
   check("detail names the outcome", alreadyDisp.json.detail.includes("Already has an appointment"));
 
+  console.log("\nNew-vs-existing patient captured on a booking win");
+  const newPatientLead = await call(L, { method: "POST", body: { name: "Fresh Caller", phone: "01799900002" }, cookie: reqCookie });
+  await call(LA, { method: "POST", query: { id: newPatientLead.json.id, action: "claim" }, cookie: agentCookie });
+  const bookedNew = await call(LA, {
+    method: "POST",
+    query: { id: newPatientLead.json.id, action: "disposition" },
+    body: { l1: "connected", l2: "appointment_booked", note: "", existingPatient: false },
+    cookie: agentCookie,
+  });
+  check("booking a new patient records existing:false", bookedNew.status === 200 && bookedNew.json.existing === false);
+
+  const existingPatientLead = await call(L, { method: "POST", body: { name: "Returning Caller", phone: "01799900003" }, cookie: reqCookie });
+  await call(LA, { method: "POST", query: { id: existingPatientLead.json.id, action: "claim" }, cookie: agentCookie });
+  const bookedExisting = await call(LA, {
+    method: "POST",
+    query: { id: existingPatientLead.json.id, action: "disposition" },
+    body: { l1: "connected", l2: "appointment_booked", note: "", existingPatient: true },
+    cookie: agentCookie,
+  });
+  check("booking an existing patient records existing:true", bookedExisting.status === 200 && bookedExisting.json.existing === true);
+
+  // Simulates an earlier call already having recorded this; a later
+  // outcome that doesn't answer the question shouldn't overwrite it.
+  const noAnswerLead = await call(L, { method: "POST", body: { name: "No Answer Caller", phone: "01799900004" }, cookie: reqCookie });
+  await query("update leads set existing_patient = true where id = $1", [noAnswerLead.json.id]);
+  await call(LA, { method: "POST", query: { id: noAnswerLead.json.id, action: "claim" }, cookie: agentCookie });
+  const notReached = await call(LA, {
+    method: "POST",
+    query: { id: noAnswerLead.json.id, action: "disposition" },
+    body: { l1: "not_responding", l2: null, note: "" },
+    cookie: agentCookie,
+  });
+  check("an outcome that doesn't answer the question leaves existing_patient as it was", notReached.status === 200 && notReached.json.existing === true);
+
   console.log("\nRequester default channel");
   const invWithChannel = await call(invites as Handler, {
     method: "POST",

@@ -46,6 +46,7 @@ interface DispositionBody {
   nextActionDate: string;
   erpRefType: "" | "booking" | "invoice";
   erpRefValue: string;
+  existingPatient?: boolean;
 }
 interface EscalateBody {
   reason: string;
@@ -225,6 +226,9 @@ export default route({
           const wasLoan = !!lead.assigned_to && lead.assigned_to !== me;
           const nextAssignee = wasLoan ? lead.assigned_to : me;
           const autoEscalate = b.l1 === "international";
+          // Only ever sent alongside a booking win — every other outcome
+          // leaves the column as it was, since the agent never found out.
+          const existingPatient = typeof b.existingPatient === "boolean" ? b.existingPatient : null;
 
           const { rows } = await client.query<LeadRow>(
             `update leads set status = $1, attempt = $2, detail = $3, next_action_date = $4,
@@ -236,7 +240,8 @@ export default route({
                escalated = case when $10 then true else escalated end,
                escalated_by = case when $10 then $11 else escalated_by end,
                escalated_at = case when $10 then now() else escalated_at end,
-               escalated_reason = case when $10 then $12 else escalated_reason end
+               escalated_reason = case when $10 then $12 else escalated_reason end,
+               existing_patient = case when $13::boolean is not null then $13::boolean else existing_patient end
              where id = $7 returning *`,
             [
               status,
@@ -251,6 +256,7 @@ export default route({
               autoEscalate,
               `${me} ${session.name}`,
               INTERNATIONAL_ESCALATION_REASON,
+              existingPatient,
             ],
           );
           await client.query("commit");

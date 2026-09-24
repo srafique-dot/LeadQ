@@ -225,6 +225,10 @@ export interface DispositionInput {
   nextActionDate: string;
   erpRefType: "booking" | "invoice" | "";
   erpRefValue: string;
+  /** Set only on a booking win — whether the caller already existed in the
+   * ERP or had to be registered there as part of this call. Omitted for
+   * every other outcome, where the answer isn't known. */
+  existingPatient?: boolean;
 }
 
 /** Applies a two-level call disposition to a lead. The status-transition
