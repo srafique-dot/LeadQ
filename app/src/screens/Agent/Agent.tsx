@@ -134,8 +134,6 @@ export function Agent() {
   const [nextActionDate, setNextActionDate] = useState("");
   const [erpRef, setErpRef] = useState("");
   const [smsCopied, setSmsCopied] = useState(false);
-  const [callbackSmsCopied, setCallbackSmsCopied] = useState(false);
-  const [bookingSmsCopied, setBookingSmsCopied] = useState(false);
   const [smsTemplates, setSmsTemplates] = useState<Record<string, string>>({});
   const [copied, setCopied] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -295,8 +293,6 @@ export function Agent() {
     setNextActionDate("");
     setErpRef("");
     setSmsCopied(false);
-    setCallbackSmsCopied(false);
-    setBookingSmsCopied(false);
     setDetailsOpen(false);
   }
 
@@ -825,20 +821,6 @@ export function Agent() {
                           className={styles.refInput}
                         />
                       </label>
-                      {smsTemplates.sms_booking_confirm && (
-                        <SmsCopyBox
-                          title="Booking confirmation SMS"
-                          text={fillTemplate(smsTemplates.sms_booking_confirm, {
-                            name: lead.name,
-                            date: lead.wantDate,
-                            time: lead.preferredTime,
-                            doctor: lead.doctor,
-                            facility: lead.facility,
-                          })}
-                          copied={bookingSmsCopied}
-                          onCopy={() => setBookingSmsCopied(true)}
-                        />
-                      )}
                     </div>
                   )}
 
@@ -875,14 +857,6 @@ export function Agent() {
                           style={{ borderColor: nextActionDate ? "var(--success-tint-border)" : "var(--border-input)" }}
                         />
                       </div>
-                      {nextActionDate && smsTemplates.sms_callback_confirm && (
-                        <SmsCopyBox
-                          title="Callback confirmation SMS"
-                          text={fillTemplate(smsTemplates.sms_callback_confirm, { name: lead.name, date: nextActionDate })}
-                          copied={callbackSmsCopied}
-                          onCopy={() => setCallbackSmsCopied(true)}
-                        />
-                      )}
                     </div>
                   )}
 

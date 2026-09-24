@@ -1,7 +1,7 @@
 /** Superadmin-editable SMS templates. No SMS gateway exists — LeadQ only
  * generates the text; the agent copies it into their own phone's SMS app.
  * Backed by api/channels/index.ts's settings dispatch (see that file for why). */
-export type SmsTemplateKey = "sms_missed_call" | "sms_callback_confirm" | "sms_booking_confirm";
+export type SmsTemplateKey = "sms_missed_call";
 
 export function getSettings(): Promise<Record<string, string>> {
   return fetch("/api/channels?resource=settings").then((r) => r.json());

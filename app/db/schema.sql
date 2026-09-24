@@ -105,9 +105,7 @@ create table settings (
   updated_at timestamptz not null default now()
 );
 insert into settings (key, value) values
-  ('sms_missed_call', 'Hi {name}, we tried calling you regarding your enquiry with United Healthcare. Please call us back at your convenience. Thank you.'),
-  ('sms_callback_confirm', 'Hi {name}, confirming we will call you back on {date} regarding your enquiry with United Healthcare.'),
-  ('sms_booking_confirm', 'Hi {name}, your appointment with {doctor} at {facility} is confirmed for {date} {time}. Please arrive 15 minutes early with any previous reports.');
+  ('sms_missed_call', 'Hi {name}, we tried calling you regarding your enquiry with United Healthcare. Please call us back at your convenience. Thank you.');
 
 create table leads (
   id text primary key default 'L-' || upper(encode(gen_random_bytes(5), 'hex')),

@@ -16,8 +16,6 @@ import type { Channel, Invite, Role } from "../../api/types";
 
 const SMS_TEMPLATES: { key: SmsTemplateKey; label: string; hint: string; tokens: string }[] = [
   { key: "sms_missed_call", label: "Missed-call SMS", hint: "Sent after 3 unanswered attempts.", tokens: "{name}" },
-  { key: "sms_callback_confirm", label: "Callback confirmation", hint: "Sent when a callback date is logged.", tokens: "{name}, {date}" },
-  { key: "sms_booking_confirm", label: "Booking confirmation", hint: "Sent when an appointment is booked or purchased.", tokens: "{name}, {date}, {time}, {doctor}, {facility}" },
 ];
 
 const ROLE_META: Record<Role, { tag: string; label: string; desc: string; bg: string; fg: string }> = {
