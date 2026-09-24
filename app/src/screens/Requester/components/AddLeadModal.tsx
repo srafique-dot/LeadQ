@@ -139,6 +139,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [email, setEmail] = useState("");
   const [sources, setSources] = useState<string[]>(FALLBACK_SOURCES);
   const [source, setSource] = useState(currentUser.defaultChannel || FALLBACK_SOURCES[0]);
+  const [campaign, setCampaign] = useState("");
   const [leadType, setLeadType] = useState<LeadType>(LEAD_TYPES[0].value);
   const [urgent, setUrgent] = useState(false);
   const [urgentReason, setUrgentReason] = useState("");
@@ -213,7 +214,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
       return dup.name;
     }
     const created = await createLead(
-      { name, phone, leadType, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: "" },
+      { name, phone, leadType, facility, area, doctor, department: dept, patientName: forOther ? patient : "", wantDate, preferredTime, email, note, urgent, urgentReason, cohort: campaign.trim() },
       currentUser.employeeId,
       currentUser.name,
       source,
@@ -241,7 +242,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
     setForOther(false);
     setPatient("");
     setNote("");
-    // source, leadType and facility are left as-is — a rapid-entry batch usually shares them.
+    // source, leadType, facility and campaign are left as-is — a rapid-entry batch usually shares them.
   }
 
   async function handleSave() {
@@ -325,6 +326,20 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               </select>
             </label>
           </div>
+
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Campaign or activation (optional)</span>
+            <input
+              value={campaign}
+              onChange={(e) => setCampaign(e.target.value)}
+              placeholder="e.g. Door-to-door — Uttara Sept, Community health fair"
+              className={styles.textInput}
+            />
+            <span style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 4, display: "block" }}>
+              Only for a named field campaign or activation — leave blank for a regular lead. Stays the same for the
+              next lead you add, so it only needs typing once per batch.
+            </span>
+          </label>
 
           <label className={styles.field}>
             <span className={styles.fieldLabel}>

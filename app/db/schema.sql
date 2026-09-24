@@ -84,7 +84,13 @@ create table channels (
 insert into channels (name, active) values
   ('Manual entry', true),
   ('Website LP', true),
-  ('Door2Door Campaign', true);
+  ('Door2Door Campaign', true),
+  ('Facebook', true),
+  ('Instagram', true),
+  ('WhatsApp', true),
+  ('Hotline', true),
+  ('Direct call', true),
+  ('Social media', true);
 
 -- Small generic key/value store for superadmin-editable app config that
 -- doesn't warrant its own table. Currently: the three SMS templates an

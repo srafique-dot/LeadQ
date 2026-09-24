@@ -68,6 +68,7 @@ export function Supervisor() {
   const [queueStatusFilter, setQueueStatusFilter] = useState<"all" | "waiting" | "trying">("all");
   const [allSearch, setAllSearch] = useState("");
   const [allChannelFilter, setAllChannelFilter] = useState("all");
+  const [coverageBy, setCoverageBy] = useState<"channel" | "cohort">("channel");
   const [allTypeFilter, setAllTypeFilter] = useState("all");
   const [allStatusFilter, setAllStatusFilter] = useState("all");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,13 +128,32 @@ export function Supervisor() {
     .sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0) || Date.parse(a.createdAt) - Date.parse(b.createdAt));
 
   const channelNames = Array.from(new Set(allLeads.map((l) => l.channel).filter(Boolean))).sort();
-  const channelBreakdown = channelNames.map((name) => {
-    const rows = allLeads.filter((l) => l.channel === name);
+
+  /** "Never called" (no logged attempt) and "reached" (connected at least
+   * once) come straight from each lead's own history — no extra query, and
+   * the only way to answer "how many of these were actually worked" for a
+   * cohort or campaign that never shows up anywhere else. */
+  function coverageOf(rows: Lead[]) {
     const booked = rows.filter((l) => l.status === "booked").length;
     const closed = rows.filter((l) => l.status === "closed").length;
-    const open = rows.length - booked - closed;
-    return { name, total: rows.length, booked, closed, open, bookedPct: rows.length ? Math.round((booked / rows.length) * 100) : 0 };
-  });
+    const neverCalled = rows.filter((l) => l.history.length === 0).length;
+    const reached = rows.filter((l) => l.history.some((h) => h.l1 === "connected")).length;
+    return {
+      total: rows.length,
+      neverCalled,
+      calledOnce: rows.length - neverCalled,
+      reached,
+      booked,
+      closed,
+      open: rows.length - booked - closed,
+      bookedPct: rows.length ? Math.round((booked / rows.length) * 100) : 0,
+    };
+  }
+  const cohortNames = Array.from(new Set(allLeads.map((l) => l.cohort).filter(Boolean))).sort();
+  const coverageGroups = (coverageBy === "channel" ? channelNames : cohortNames).map((name) => ({
+    name,
+    ...coverageOf(allLeads.filter((l) => (coverageBy === "channel" ? l.channel : l.cohort) === name)),
+  }));
 
   const DISPLAY_CAP = 300;
   const allFilteredLeads = allLeads
@@ -587,31 +607,60 @@ export function Supervisor() {
               </button>
             </div>
 
-            {channelBreakdown.length > 0 && (
-              <div className={styles.card} style={{ marginTop: 14 }}>
-                <div className={styles.cardHead}>
-                  <span className={styles.cardHeadTitle}>By channel</span>
+            <div className={styles.card} style={{ marginTop: 14 }}>
+              <div className={styles.cardHead}>
+                <span className={styles.cardHeadTitle}>Coverage</span>
+                <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  {(["channel", "cohort"] as const).map((g) => (
+                    <button
+                      key={g}
+                      type="button"
+                      className={styles.filterPill}
+                      style={coverageBy === g ? { background: "var(--primary)", color: "#fff", borderColor: "var(--primary)" } : undefined}
+                      onClick={() => setCoverageBy(g)}
+                    >
+                      {g === "channel" ? "By channel" : "By cohort / campaign"}
+                    </button>
+                  ))}
                 </div>
-                <div className={styles.tableHeadRow}>
-                  <div style={{ flex: "1 1 160px" }} className={styles.tableHeadCell}>CHANNEL</div>
-                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>TOTAL</div>
-                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>OPEN</div>
-                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>BOOKED</div>
-                  <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>CLOSED</div>
-                  <div style={{ width: 90, textAlign: "right" }} className={styles.tableHeadCell}>BOOK %</div>
-                </div>
-                {channelBreakdown.map((c) => (
-                  <div key={c.name} className={styles.tableRow}>
-                    <div style={{ flex: "1 1 160px" }} className={styles.tableName}>{c.name}</div>
-                    <div style={{ width: 80 }} className={styles.tableCell}>{c.total}</div>
-                    <div style={{ width: 80 }} className={styles.tableCell}>{c.open}</div>
-                    <div style={{ width: 80, color: "var(--success)" }} className={styles.tableCell}>{c.booked}</div>
-                    <div style={{ width: 80 }} className={styles.tableCell}>{c.closed}</div>
-                    <div style={{ width: 90, color: c.bookedPct < 20 ? "var(--danger)" : "var(--ink)" }} className={styles.tableCell}>{c.bookedPct}%</div>
-                  </div>
-                ))}
               </div>
-            )}
+              {coverageBy === "cohort" && (
+                <div style={{ padding: "0 4px 8px", fontSize: 12.5, color: "var(--ink-faint)" }}>
+                  Leads not tagged to a cohort or campaign aren't shown here — add one on import, or on the Add-lead
+                  form's "Campaign or activation" field.
+                </div>
+              )}
+              {coverageGroups.length === 0 ? (
+                <div className={styles.emptyRow}>
+                  {coverageBy === "cohort" ? "No cohort or campaign leads yet." : "No leads yet."}
+                </div>
+              ) : (
+                <>
+                  <div className={styles.tableHeadRow}>
+                    <div style={{ flex: "1 1 160px" }} className={styles.tableHeadCell}>{coverageBy === "channel" ? "CHANNEL" : "COHORT / CAMPAIGN"}</div>
+                    <div style={{ width: 70, textAlign: "right" }} className={styles.tableHeadCell}>LEADS IN</div>
+                    <div style={{ width: 90, textAlign: "right" }} className={styles.tableHeadCell}>NEVER CALLED</div>
+                    <div style={{ width: 80, textAlign: "right" }} className={styles.tableHeadCell}>CALLED ≥1</div>
+                    <div style={{ width: 70, textAlign: "right" }} className={styles.tableHeadCell}>REACHED</div>
+                    <div style={{ width: 70, textAlign: "right" }} className={styles.tableHeadCell}>BOOKED</div>
+                    <div style={{ width: 70, textAlign: "right" }} className={styles.tableHeadCell}>CLOSED</div>
+                    <div style={{ width: 90, textAlign: "right" }} className={styles.tableHeadCell}>BOOK %</div>
+                  </div>
+                  {coverageGroups.map((c) => (
+                    <div key={c.name} className={styles.tableRow}>
+                      <div style={{ flex: "1 1 160px" }} className={styles.tableName}>{c.name}</div>
+                      <div style={{ width: 70 }} className={styles.tableCell}>{c.total}</div>
+                      <div style={{ width: 90, color: c.neverCalled > 0 ? "var(--danger)" : "var(--ink)" }} className={styles.tableCell}>{c.neverCalled}</div>
+                      <div style={{ width: 80 }} className={styles.tableCell}>{c.calledOnce}</div>
+                      <div style={{ width: 70 }} className={styles.tableCell}>{c.reached}</div>
+                      <div style={{ width: 70, color: "var(--success)" }} className={styles.tableCell}>{c.booked}</div>
+                      <div style={{ width: 70 }} className={styles.tableCell}>{c.closed}</div>
+                      <div style={{ width: 90, color: c.bookedPct < 20 ? "var(--danger)" : "var(--ink)" }} className={styles.tableCell}>{c.bookedPct}%</div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
 
             <div style={{ display: "flex", gap: 9, flexWrap: "wrap", margin: "14px 0" }}>
               <input

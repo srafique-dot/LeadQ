@@ -98,9 +98,25 @@ function isoPlus(days: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/** The clock, the calling-window gate and "back around HH:MM" all have to
+ * agree with the server's Dhaka time — reading the browser's own clock
+ * breaks on a laptop set to a different timezone (which does happen), and
+ * silently disagreeing with retry_after (always Dhaka, from the server) is
+ * worse than being wrong consistently. */
+function dhakaHM(date: Date): { hours: number; minutes: number; label: string } {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  const hours = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minutes = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+  return { hours, minutes, label: `${pad(hours)}:${pad(minutes)}` };
+}
+
 function nextRunTime(): string {
-  const back = new Date(Date.now() + 12 * 60000);
-  return `${pad(back.getHours())}:${pad(back.getMinutes())}`;
+  return dhakaHM(new Date(Date.now() + 12 * 60000)).label;
 }
 
 export function Agent() {
@@ -288,8 +304,7 @@ export function Agent() {
   // this agent has claimed is ever on screen.
   const lead = viewingAs ? queue[0] : currentId ? queue.find((l) => l.id === currentId) : undefined;
 
-  const clockDate = new Date(now);
-  const hours = clockDate.getHours();
+  const { hours, label: clockLabel } = dhakaHM(new Date(now));
   const outOfWindow = hours < 10 || hours >= 23;
   const fresh = queue.filter((l) => ageMinutes(l, now) < 60);
   const due = queue.filter((l) => ageMinutes(l, now) >= 60);
@@ -406,7 +421,7 @@ export function Agent() {
           <img src="/assets/umch-logo.png" alt="United Healthcare" />
           <div style={{ marginLeft: "auto", textAlign: "right", minWidth: 0 }}>
             <div className={styles.agentName}>{currentUser.name}</div>
-            <div className={styles.clock}>{pad(hours)}:{pad(clockDate.getMinutes())}</div>
+            <div className={styles.clock}>{clockLabel}</div>
             <button type="button" className={styles.signOutBtn} onClick={handleSignOut}>
               Sign out
             </button>
