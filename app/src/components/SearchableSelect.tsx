@@ -96,7 +96,13 @@ export function SearchableSelect({
       if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
       setOpen(false);
     }
-    function onScrollOrResize() {
+    // Capture-phase "scroll" fires for a scroll anywhere in the document,
+    // including inside the option list itself — without this check, the
+    // very act of scrolling the list closed it before any movement showed.
+    // Only a scroll outside the panel (the page moving under it) should
+    // close it.
+    function onScrollOrResize(e: Event) {
+      if (e.target instanceof Node && panelRef.current?.contains(e.target)) return;
       setOpen(false);
     }
     document.addEventListener("mousedown", onDocMouseDown);
