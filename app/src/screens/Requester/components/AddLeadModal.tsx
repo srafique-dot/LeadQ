@@ -261,7 +261,7 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
   return (
     <div className={`${styles.overlay} ${narrow ? styles.sheet : ""}`}>
-      <div className={`${styles.modalCard} ${narrow ? styles.sheet : ""}`}>
+      <div className={`${styles.modalCard} ${narrow ? styles.sheet : styles.wide}`}>
         <div className={styles.modalHeader}>
           <div style={{ minWidth: 0 }}>
             <div className={styles.modalTitle}>
@@ -405,30 +405,32 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             </div>
           )}
 
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>
-              Name / <Bn>নাম</Bn>
-            </span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Full name as they gave it"
-              className={styles.textInput}
-            />
-          </label>
+          <div className={styles.twoCol}>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                Name / <Bn>নাম</Bn>
+              </span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Full name as they gave it"
+                className={styles.textInput}
+              />
+            </label>
 
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>
-              Email / <Bn>ইমেইল</Bn> <span className={styles.muted}>— optional / <Bn>ঐচ্ছিক</Bn></span>
-            </span>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="name@example.com"
-              className={styles.textInput}
-            />
-          </label>
+            <label className={styles.field}>
+              <span className={styles.fieldLabel}>
+                Email / <Bn>ইমেইল</Bn> <span className={styles.muted}>— optional / <Bn>ঐচ্ছিক</Bn></span>
+              </span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className={styles.textInput}
+              />
+            </label>
+          </div>
 
           <div className={styles.twoCol}>
             <label className={styles.field}>

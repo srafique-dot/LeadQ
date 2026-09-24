@@ -356,6 +356,14 @@
   padding: 28px 36px;
   overflow-y: auto;
 }
+/* Add-lead has enough fields that at the default 700px it's mostly a
+ * scroll list on a laptop screen with room to spare. Wider lets the
+ * existing two-column rows breathe and the name/email row sit side by
+ * side, so there's meaningfully less to scroll through, not just a wider
+ * box around the same list. */
+.modalCard.wide {
+  max-width: 960px;
+}
 
 .modalHeader {
   padding: 24px 30px 20px;
