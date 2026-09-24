@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./Supervisor.module.css";
 import { useAuth } from "../../context/AuthContext";
+import { SearchableSelect } from "../../components/SearchableSelect";
 import {
   getSupervisorStats,
   unescalateLead,
@@ -562,27 +563,20 @@ export function Supervisor() {
                     {l.claimedBy ? "On a call" : l.status === "waiting" ? "Waiting" : "Being called"}
                   </div>
                   <div style={{ width: 190 }}>
-                    <select
+                    <SearchableSelect
                       value={l.assignedTo || ""}
-                      onChange={async (e) => {
-                        await reassignLead(l.id, e.target.value || null);
-                        setFlash(
-                          e.target.value
-                            ? `${l.name} reassigned to ${accounts.find((a) => a.employeeId === e.target.value)?.name ?? e.target.value}.`
-                            : `${l.name} returned to the floor.`,
-                        );
+                      onChange={async (v) => {
+                        await reassignLead(l.id, v || null);
+                        setFlash(v ? `${l.name} reassigned to ${accounts.find((a) => a.employeeId === v)?.name ?? v}.` : `${l.name} returned to the floor.`);
                         refreshLive();
                       }}
-                      style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid var(--border-input)", background: "var(--surface)", fontSize: 13 }}
-                    >
-                      <option value="">Unassigned — on the floor</option>
-                      {agents.map((a) => (
-                        <option key={a.employeeId} value={a.employeeId}>
-                          {a.name}
-                          {a.presence === "available" ? "" : a.presence === "break" ? " (on break)" : " (signed off)"}
-                        </option>
-                      ))}
-                    </select>
+                      options={agents.map((a) => ({
+                        value: a.employeeId,
+                        label: `${a.name}${a.presence === "available" ? "" : a.presence === "break" ? " (on break)" : " (signed off)"}`,
+                      }))}
+                      placeholder="Unassigned — on the floor"
+                      triggerStyle={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid var(--border-input)", background: "var(--surface)", fontSize: 13 }}
+                    />
                   </div>
                   <div style={{ width: 70, textAlign: "right", color: slaColor(Date.now() - Date.parse(l.createdAt)) }} className={styles.tableCell}>
                     {ageLabel(Date.now() - Date.parse(l.createdAt))}
@@ -669,21 +663,30 @@ export function Supervisor() {
                 placeholder="Search name, phone or cohort"
                 style={{ flex: "1 1 220px", padding: "9px 12px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)", fontSize: 14, color: "var(--ink)" }}
               />
-              <select value={allChannelFilter} onChange={(e) => setAllChannelFilter(e.target.value)} style={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}>
-                <option value="all">All channels</option>
-                {channelNames.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              <select value={allTypeFilter} onChange={(e) => setAllTypeFilter(e.target.value)} style={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}>
-                <option value="all">All types</option>
-                {LEAD_TYPES.map((t) => <option key={t.code} value={t.code}>{t.label}</option>)}
-              </select>
-              <select value={allStatusFilter} onChange={(e) => setAllStatusFilter(e.target.value)} style={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}>
-                <option value="all">All statuses</option>
-                <option value="waiting">Waiting</option>
-                <option value="trying">Being called</option>
-                <option value="booked">Booked</option>
-                <option value="closed">Closed</option>
-              </select>
+              <SearchableSelect
+                value={allChannelFilter}
+                onChange={setAllChannelFilter}
+                options={[{ value: "all", label: "All channels" }, ...channelNames.map((c) => ({ value: c, label: c }))]}
+                triggerStyle={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}
+              />
+              <SearchableSelect
+                value={allTypeFilter}
+                onChange={setAllTypeFilter}
+                options={[{ value: "all", label: "All types" }, ...LEAD_TYPES.map((t) => ({ value: t.code, label: t.label }))]}
+                triggerStyle={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}
+              />
+              <SearchableSelect
+                value={allStatusFilter}
+                onChange={setAllStatusFilter}
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "waiting", label: "Waiting" },
+                  { value: "trying", label: "Being called" },
+                  { value: "booked", label: "Booked" },
+                  { value: "closed", label: "Closed" },
+                ]}
+                triggerStyle={{ padding: "9px 10px", borderRadius: 7, border: "1px solid var(--border-input)", background: "var(--surface)" }}
+              />
             </div>
 
             <div className={styles.card}>

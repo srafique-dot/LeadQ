@@ -3,6 +3,8 @@ import styles from "../Requester.module.css";
 import { useMediaQuery } from "../../../hooks/useMediaQuery";
 import { digitsOf, findLeadByPhone, createLead, mergeIntoLead, serviceLine, statusLabel } from "../../../api/leads";
 import { listChannels } from "../../../api/channels";
+import { isContactPickerSupported, pickContact } from "../../../lib/contactPicker";
+import { SearchableSelect } from "../../../components/SearchableSelect";
 import type { Account, Lead, LeadType } from "../../../api/types";
 
 /** Wraps the Bangla half of a bilingual label so it renders in Hind
@@ -140,6 +142,9 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
   const [sources, setSources] = useState<string[]>(FALLBACK_SOURCES);
   const [source, setSource] = useState(currentUser.defaultChannel || FALLBACK_SOURCES[0]);
   const [campaign, setCampaign] = useState("");
+  // Computed once — support doesn't change mid-session, and re-checking on
+  // every render would be pointless.
+  const [contactPickerOn] = useState(isContactPickerSupported);
   const [leadType, setLeadType] = useState<LeadType>(LEAD_TYPES[0].value);
   const [urgent, setUrgent] = useState(false);
   const [urgentReason, setUrgentReason] = useState("");
@@ -185,6 +190,13 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
     setPhone(v);
     setEntryMode(null);
     setJustSaved("");
+  }
+
+  async function handlePickContact() {
+    const c = await pickContact();
+    if (!c) return;
+    setPhoneValue(c.tel);
+    if (c.name && !name.trim()) setName(c.name);
   }
 
   const blockers: string[] = [];
@@ -305,25 +317,23 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
                   <span style={{ marginLeft: 6, fontWeight: 400, color: "var(--ink-faint)" }}>(your default — change if this one's different)</span>
                 )}
               </span>
-              <select value={source} onChange={(e) => setSource(e.target.value)} className={styles.textInput}>
-                {sources.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={source}
+                onChange={setSource}
+                options={sources.map((s) => ({ value: s, label: s }))}
+                triggerClassName={styles.textInput}
+              />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
                 What is this about? / <Bn>এটি কী বিষয়ে</Bn>
               </span>
-              <select value={leadType} onChange={(e) => setLeadType(e.target.value as LeadType)} className={styles.textInput}>
-                {LEAD_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={leadType}
+                onChange={(v) => setLeadType(v as LeadType)}
+                options={LEAD_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+                triggerClassName={styles.textInput}
+              />
             </label>
           </div>
 
@@ -345,14 +355,21 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
             <span className={styles.fieldLabel}>
               Phone number / <Bn>ফোন নম্বর</Bn>
             </span>
-            <input
-              ref={phoneRef}
-              value={phone}
-              onChange={(e) => setPhoneValue(e.target.value)}
-              placeholder="+880 1XXX XXX XXX"
-              className={styles.phoneInput}
-              style={{ borderWidth: 1.5, borderStyle: "solid", borderColor: phoneBorder }}
-            />
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                ref={phoneRef}
+                value={phone}
+                onChange={(e) => setPhoneValue(e.target.value)}
+                placeholder="+880 1XXX XXX XXX"
+                className={styles.phoneInput}
+                style={{ flex: "1 1 auto", minWidth: 0, borderWidth: 1.5, borderStyle: "solid", borderColor: phoneBorder }}
+              />
+              {contactPickerOn && (
+                <button type="button" className={styles.contactPickBtn} onClick={handlePickContact}>
+                  From contacts
+                </button>
+              )}
+            </div>
             {phoneChecking && <span className={styles.hint}>Keep typing — we check for duplicates as you go.</span>}
             {phoneClear && (
               <span className={styles.hint} style={{ color: "var(--success-dark)", fontWeight: 500 }}>
@@ -437,14 +454,13 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               <span className={styles.fieldLabel}>
                 Which hospital / <Bn>কোন হাসপাতাল</Bn>
               </span>
-              <select value={facility} onChange={(e) => setFacility(e.target.value)} className={styles.textInput}>
-                <option value="">Choose one…</option>
-                {HOSPITALS.map((h) => (
-                  <option key={h} value={h}>
-                    {h}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={facility}
+                onChange={setFacility}
+                options={HOSPITALS.map((h) => ({ value: h, label: h }))}
+                placeholder="Choose one…"
+                triggerClassName={styles.textInput}
+              />
             </label>
             <label className={styles.field}>
               <span className={styles.fieldLabel}>
@@ -508,14 +524,13 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
               <span className={styles.fieldLabel}>
                 Which time / <Bn>কোন সময়</Bn> <span className={styles.muted}>— optional / <Bn>ঐচ্ছিক</Bn></span>
               </span>
-              <select value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} className={styles.textInput}>
-                <option value="">No preference…</option>
-                {TIME_SLOTS.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={preferredTime}
+                onChange={setPreferredTime}
+                options={TIME_SLOTS.map((t) => ({ value: t, label: t }))}
+                placeholder="No preference…"
+                triggerClassName={styles.textInput}
+              />
             </label>
           </div>
 

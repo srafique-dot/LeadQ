@@ -628,6 +628,26 @@
   line-height: 1.55;
 }
 
+.contactPickBtn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border-input);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--primary-dark, var(--primary));
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.contactPickBtn:active {
+  background: var(--primary-tint);
+}
+
 .pillBtn {
   background: var(--surface);
   border: 1px solid var(--border-input);

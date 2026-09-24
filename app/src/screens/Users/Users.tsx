@@ -12,6 +12,7 @@ import {
 } from "../../api/auth";
 import { listChannels, createChannel, setChannelActive } from "../../api/channels";
 import { getSettings, setSetting, type SmsTemplateKey } from "../../api/settings";
+import { SearchableSelect } from "../../components/SearchableSelect";
 import type { Channel, Invite, Role } from "../../api/types";
 
 const SMS_TEMPLATES: { key: SmsTemplateKey; label: string; hint: string; tokens: string }[] = [
@@ -516,18 +517,13 @@ export function Users() {
                   {niRole === "requester" && (
                     <label className={styles.field} style={{ marginTop: 16 }}>
                       <span className={styles.fieldLabel}>Default lead source (optional)</span>
-                      <select
+                      <SearchableSelect
                         value={niDefaultChannel}
-                        onChange={(e) => setNiDefaultChannel(e.target.value)}
-                        className={styles.textInput}
-                      >
-                        <option value="">None — they pick a channel on every lead</option>
-                        {channels.filter((c) => c.active).map((c) => (
-                          <option key={c.name} value={c.name}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={setNiDefaultChannel}
+                        options={channels.filter((c) => c.active).map((c) => ({ value: c.name, label: c.name }))}
+                        placeholder="None — they pick a channel on every lead"
+                        triggerClassName={styles.textInput}
+                      />
                       <span style={{ fontSize: 12.5, color: "var(--ink-faint)", marginTop: 4, display: "block" }}>
                         Pre-fills their Add-lead form. They can still change it on any lead — this just saves a click on
                         the usual case. Change it later from their row.
@@ -626,20 +622,15 @@ export function Users() {
               Pre-fills their Add-lead form so they don't re-pick it on every lead. They can still change it on any
               lead — this only sets what's there to start.
             </div>
-            <select
+            <SearchableSelect
               value={channelValue}
-              onChange={(e) => setChannelValue(e.target.value)}
-              className={styles.textInput}
-              style={{ marginTop: 16 }}
+              onChange={setChannelValue}
+              options={channels.filter((c) => c.active).map((c) => ({ value: c.name, label: c.name }))}
+              placeholder="None — picks a channel on every lead"
+              triggerClassName={styles.textInput}
+              triggerStyle={{ marginTop: 16 }}
               autoFocus
-            >
-              <option value="">None — picks a channel on every lead</option>
-              {channels.filter((c) => c.active).map((c) => (
-                <option key={c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            />
             <div className={styles.resetActions}>
               <button type="button" className={styles.cancelBtn} onClick={() => setChannelTarget(null)}>
                 Cancel

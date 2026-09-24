@@ -5,6 +5,7 @@ import { Requester } from "./Requester/Requester";
 import { Agent } from "./Agent/Agent";
 import { Supervisor } from "./Supervisor/Supervisor";
 import { Users } from "./Users/Users";
+import { SearchableSelect } from "../components/SearchableSelect";
 
 type Screen = "leads" | "queue" | "floor" | "people";
 
@@ -90,17 +91,19 @@ export function SuperadminShell() {
 
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <span style={{ fontSize: 12, color: "#8B9CA3", fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}>View as</span>
-          <select
+          <SearchableSelect
             value={viewAsId ?? ""}
-            onChange={(e) => {
-              const id = e.target.value || null;
-              setViewAs(id);
+            onChange={(id) => {
+              setViewAs(id || null);
               if (id) {
                 const acc = accounts.find((a) => a.employeeId === id);
                 if (acc) setScreen(TAB_FOR_ROLE[acc.role]);
               }
             }}
-            style={{
+            options={accounts.map((a) => ({ value: a.employeeId, label: `${a.name} · ${a.employeeId} · ${a.roleLabel}` }))}
+            placeholder="Superadmin (you)"
+            chevronColor="#8B9CA3"
+            triggerStyle={{
               background: "#243138",
               color: "#fff",
               border: "1px solid #3A4A52",
@@ -109,14 +112,7 @@ export function SuperadminShell() {
               fontSize: 12.5,
               fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
             }}
-          >
-            <option value="">Superadmin (you)</option>
-            {accounts.map((a) => (
-              <option key={a.employeeId} value={a.employeeId}>
-                {a.name} · {a.employeeId} · {a.roleLabel}
-              </option>
-            ))}
-          </select>
+          />
         </div>
       </div>
 
