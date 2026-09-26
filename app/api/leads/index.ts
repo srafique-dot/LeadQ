@@ -1,6 +1,6 @@
 import { pool, query } from "../_db.js";
 import { route, body } from "../_http.js";
-import { serializeLead, digitsOf, type LeadRow } from "../_leads.js";
+import { serializeLead, digitsOf, dhaka, type LeadRow } from "../_leads.js";
 import { releaseStaleAssignments, topUpWorkingSet, assignedSql, borrowableSql, heartbeat, TODAY } from "../_routing.js";
 
 interface NewLeadBody {
@@ -146,25 +146,67 @@ export default route({
           [batch, cohortInstructions?.trim() ?? "", session.employeeId],
         );
 
-        const { rows: existing } = await client.query<{ id: string; name: string; digits: string }>(
-          "select distinct on (digits) id, name, digits from leads where digits = any($1::text[]) order by digits, created_at asc",
+        const { rows: existing } = await client.query<{
+          id: string; name: string; digits: string; channel: string; created_at: string;
+          doctor: string; department: string; note: string; want_date: string | null;
+        }>(
+          `select distinct on (digits) id, name, digits, channel, created_at, doctor, department, note,
+                  to_char(want_date, 'YYYY-MM-DD') as want_date
+             from leads where digits = any($1::text[]) order by digits, created_at asc`,
           [[...new Set(candidates.map((c) => c.digits))]],
         );
         const existingByDigits = new Map(existing.map((e) => [e.digits, e]));
 
+        const signature = (r: { doctor?: string | null; department?: string | null; note?: string | null; wantDate?: string | null }) =>
+          [r.doctor, r.department, r.note, r.wantDate].map((x) => (x ?? "").trim().toLowerCase()).join("|");
+        const toEntry = (c: (typeof candidates)[number]) => ({
+          channel: "Import",
+          service: [c.doctor, c.department].filter(Boolean).join(" "),
+          note: [c.note, c.wantDate && `Wants ${c.wantDate}${c.preferredTime ? " · " + c.preferredTime : ""}`].filter(Boolean).join(" — "),
+        });
+
+        // Every digits group already accounted for — seeded with the existing
+        // lead's own current details so re-pasting an already-known export
+        // doesn't spam its history, then grown with whatever else this file
+        // contains. A row whose doctor/date/note genuinely differs from
+        // everything seen so far for that number gets attached as history on
+        // the lead instead of silently vanishing as "just a duplicate" — that
+        // silent-drop was the real bug (the same patient asking for a second,
+        // different specialist used to disappear entirely).
+        const seenSignatures = new Map<string, Set<string>>();
+        for (const e of existing) {
+          seenSignatures.set(e.digits, new Set([signature({ doctor: e.doctor, department: e.department, note: e.note, wantDate: e.want_date })]));
+        }
+
         const seenInFile = new Map<string, string>();
         const toInsert: typeof candidates = [];
-        const duplicates: { row: ImportRow; existing: { id: string; name: string } }[] = [];
+        const duplicates: { row: ImportRow; existing: { id: string; name: string }; addedAsEntry: boolean }[] = [];
+        const entriesForExisting: { existingId: string; entry: ReturnType<typeof toEntry> }[] = [];
+        const entriesForNew: { digits: string; entry: ReturnType<typeof toEntry> }[] = [];
+
         for (const c of candidates) {
           const prior = existingByDigits.get(c.digits);
-          if (prior) {
-            duplicates.push({ row: c, existing: { id: prior.id, name: prior.name } });
-          } else if (seenInFile.has(c.digits)) {
-            // The same number twice in one file — keep the first.
-            duplicates.push({ row: c, existing: { id: "", name: `${seenInFile.get(c.digits)} (earlier in this file)` } });
-          } else {
+
+          if (!prior && !seenInFile.has(c.digits)) {
             seenInFile.set(c.digits, c.name);
+            seenSignatures.set(c.digits, new Set([signature(c)]));
             toInsert.push(c);
+            continue;
+          }
+
+          const sig = signature(c);
+          const seen = seenSignatures.get(c.digits) ?? new Set<string>();
+          seenSignatures.set(c.digits, seen);
+          const isNewInfo = !seen.has(sig);
+          if (isNewInfo) seen.add(sig);
+
+          if (prior) {
+            duplicates.push({ row: c, existing: { id: prior.id, name: prior.name }, addedAsEntry: isNewInfo });
+            if (isNewInfo) entriesForExisting.push({ existingId: prior.id, entry: toEntry(c) });
+          } else {
+            // The same number twice in one file — keep the first as the lead.
+            duplicates.push({ row: c, existing: { id: "", name: `${seenInFile.get(c.digits)} (earlier in this file)` }, addedAsEntry: isNewInfo });
+            if (isNewInfo) entriesForNew.push({ digits: c.digits, entry: toEntry(c) });
           }
         }
 
@@ -201,6 +243,82 @@ export default route({
             ],
           );
           created = inserted;
+        }
+
+        // Duplicates that carried genuinely new information get attached to
+        // whichever lead their phone number belongs to — one already in the
+        // DB, or the one this same batch just created for that number.
+        if (entriesForExisting.length || entriesForNew.length) {
+          const digitsToNewId = new Map(created.map((r) => [digitsOf(r.phone), r.id]));
+          const targets = [
+            ...entriesForExisting.map((e) => ({ leadId: e.existingId, entry: e.entry })),
+            ...entriesForNew.flatMap((e) => {
+              const leadId = digitsToNewId.get(e.digits);
+              return leadId ? [{ leadId, entry: e.entry }] : [];
+            }),
+          ];
+
+          if (targets.length) {
+            const distinctLeadIds = [...new Set(targets.map((t) => t.leadId))];
+            const { rows: alreadyHasHistory } = await client.query<{ lead_id: string }>(
+              "select distinct lead_id from lead_entries where lead_id = any($1::text[])",
+              [distinctLeadIds],
+            );
+            const hasHistory = new Set(alreadyHasHistory.map((r) => r.lead_id));
+
+            // First time a lead picks up a second request, its own original
+            // details become entry #1 — otherwise the history view would
+            // start at entry #2 and the original request would look like it
+            // never happened.
+            const existingById = new Map(existing.map((e) => [e.id, e]));
+            const newById = new Map(created.map((r) => [r.id, r]));
+            const toInsertByDigits = new Map(toInsert.map((c) => [c.digits, c]));
+            const backfillRows: { leadId: string; channel: string; happenedAt: string; service: string; note: string }[] = [];
+            for (const id of distinctLeadIds) {
+              if (hasHistory.has(id)) continue;
+              const priorLead = existingById.get(id);
+              if (priorLead) {
+                backfillRows.push({
+                  leadId: id,
+                  channel: priorLead.channel,
+                  happenedAt: dhaka(new Date(priorLead.created_at)),
+                  service: [priorLead.doctor, priorLead.department].filter(Boolean).join(" "),
+                  note: priorLead.note,
+                });
+                continue;
+              }
+              const newLead = newById.get(id);
+              const source = newLead ? toInsertByDigits.get(digitsOf(newLead.phone)) : undefined;
+              if (newLead && source) {
+                backfillRows.push({
+                  leadId: id,
+                  channel: "Import",
+                  happenedAt: dhaka(new Date()),
+                  service: [source.doctor, source.department].filter(Boolean).join(" "),
+                  note: source.note ?? "",
+                });
+              }
+            }
+
+            const allRows = [
+              ...backfillRows,
+              ...targets.map((t) => ({ leadId: t.leadId, channel: t.entry.channel, happenedAt: dhaka(new Date()), service: t.entry.service, note: t.entry.note })),
+            ];
+            await client.query(
+              `insert into lead_entries (lead_id, channel, happened_at, service, note)
+               select t.lead_id, t.channel, t.happened_at, t.service, t.note
+                 from unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
+                      as t(lead_id, channel, happened_at, service, note)`,
+              [
+                allRows.map((r) => r.leadId),
+                allRows.map((r) => r.channel),
+                allRows.map((r) => r.happenedAt),
+                allRows.map((r) => r.service),
+                allRows.map((r) => r.note),
+              ],
+            );
+            await client.query("update leads set merged = true where id = any($1::text[])", [distinctLeadIds]);
+          }
         }
 
         await client.query("commit");

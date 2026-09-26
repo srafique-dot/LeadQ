@@ -226,7 +226,11 @@ export function AddLeadModal({ currentUser, onClose, onSaved }: AddLeadModalProp
 
   async function performSave(): Promise<string> {
     if (isMerging && dup) {
-      await mergeIntoLead(dup.id);
+      await mergeIntoLead(dup.id, {
+        channel: source,
+        service: [doctor, dept].filter(Boolean).join(" "),
+        note: [note, wantDate && `Wants ${wantDate}${preferredTime ? " · " + preferredTime : ""}`].filter(Boolean).join(" — "),
+      });
       onSaved(`Added to ${dup.name} — the agent still sees one lead. Logged against ${currentUser.employeeId}.`);
       return dup.name;
     }

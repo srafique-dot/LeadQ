@@ -179,12 +179,14 @@ export function ImportModal({ onClose, onImported }: ImportModalProps) {
             {result.duplicates.length > 0 && (
               <>
                 {" "}
-                {result.duplicates.length} number{result.duplicates.length === 1 ? "" : "s"} already existed and{" "}
-                {result.duplicates.length === 1 ? "was" : "were"} skipped:
+                {result.duplicates.length} number{result.duplicates.length === 1 ? "" : "s"} already existed:
                 <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                   {result.duplicates.slice(0, 50).map((d, i) => (
                     <li key={i}>
-                      {d.row.name} ({d.row.phone}) — already in the system as {d.existing.name}
+                      {d.row.name} ({d.row.phone})
+                      {d.addedAsEntry
+                        ? ` — a different request than what's on file for ${d.existing.name}, added to that lead's history`
+                        : ` — already in the system as ${d.existing.name}, skipped`}
                     </li>
                   ))}
                   {result.duplicates.length > 50 && <li>…and {result.duplicates.length - 50} more.</li>}

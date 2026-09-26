@@ -107,8 +107,11 @@ export interface ImportRow {
 
 export interface ImportResult {
   created: { id: string; name: string; phone: string }[];
-  /** existing.id is empty when the earlier copy is further up the same file. */
-  duplicates: { row: ImportRow; existing: { id: string; name: string } }[];
+  /** existing.id is empty when the earlier copy is further up the same file.
+   * addedAsEntry is true when this row's doctor/date/note differed from
+   * everything already on file for that number, so it was attached to that
+   * lead's history instead of being dropped as a plain repeat. */
+  duplicates: { row: ImportRow; existing: { id: string; name: string }; addedAsEntry: boolean }[];
   /** Rows dropped for having no name or no usable phone number. */
   skipped: number;
 }

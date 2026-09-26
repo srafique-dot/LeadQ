@@ -234,6 +234,29 @@ async function main() {
   const tooMany = await call(L, { method: "POST", query: { action: "import" }, body: { rows: Array(5001).fill(rows[0]), cohort: "X" }, cookie: reqCookie });
   check("over 5,000 rows refused with 413", tooMany.status === 413);
 
+  console.log("\nImport: a second, different request against the same number is kept as history, not dropped");
+  const rina1 = {
+    name: "Rina Akther", phone: "01521507248", facility: "United Medical College Hospital",
+    doctor: "Dr. Farhana Afrooz", department: "Endocrinology", email: "", note: "",
+    leadType: "appointment", wantDate: "2026-09-25", preferredTime: "Evening", urgent: false, urgentReason: "",
+  };
+  const rina2 = { ...rina1, doctor: "Dr. Muhammad Arif Anwar", department: "Nephrology" };
+  const impRina = await call(L, { method: "POST", query: { action: "import" }, body: { rows: [rina1, rina2], cohort: "Rina test" }, cookie: reqCookie });
+  check("first row becomes the lead", impRina.json.created?.length === 1, String(impRina.json.created?.length));
+  check(
+    "second row (different doctor) is flagged as added to that lead's history, not just skipped",
+    impRina.json.duplicates?.[0]?.addedAsEntry === true,
+  );
+  const rinaId = impRina.json.created[0].id;
+  const rinaLead = await call(L, { query: { id: rinaId }, cookie: agentCookie });
+  check("the lead is marked merged so the agent sees the banner", rinaLead.json?.merged === true);
+  check("both doctors show up in the lead's entries", rinaLead.json?.entries?.length === 2, JSON.stringify(rinaLead.json?.entries));
+
+  const impRinaAgain = await call(L, { method: "POST", query: { action: "import" }, body: { rows: [rina1], cohort: "Rina test" }, cookie: reqCookie });
+  check("re-pasting the exact same request stays a plain, silent duplicate", impRinaAgain.json.duplicates?.[0]?.addedAsEntry === false);
+  const rinaLeadAgain = await call(L, { query: { id: rinaId }, cookie: agentCookie });
+  check("no extra entry was added for the exact repeat", rinaLeadAgain.json?.entries?.length === 2, String(rinaLeadAgain.json?.entries?.length));
+
   console.log("\nAgent flow: queue, claim, disposition, retry ladder");
   await call(accountAction as Handler, { method: "POST", query: { id: "AGENT_003", action: "presence" }, body: { presence: "available" }, cookie: agentCookie });
   const q = await call(L, { query: { queue: "1", agentId: "AGENT_004" }, cookie: agentCookie });
