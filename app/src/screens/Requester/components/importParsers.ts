@@ -165,6 +165,61 @@ export function parseImportFile(text: string): ImportRow[] {
 
 const DOCTOR_LINE_RE = /^(Dr\.?|Prof\.?)\s/i;
 const PHONE_LINE_RE = /^\+?[\d ]{7,15}$/;
+const DATE_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_OF_DAY_RE = /^(Morning|Afternoon|Evening|Night)$/i;
+const DIGEST_DIVIDER_RE = /^(➖{3,}|-{3,})$/;
+
+/** A third pasted shape: a hand-curated digest (built in a separate chat from
+ * a raw website export, already deduplicated) with one fixed-order block per
+ * lead — facility / ISO date / time-of-day / name / phone / email / note,
+ * a blank line, then the doctor — separated by a "➖" divider line. Detected
+ * by the divider and handled entirely separately from the two table shapes
+ * below: nothing here ends a record the way their "next phone line" / header
+ * / "Read" markers do, so their positional scans would otherwise run past a
+ * block's doctor line into the next block's facility/date/time lines and
+ * fold them all into one lead's note. */
+function parseDigestBlocks(text: string): ImportRow[] | null {
+  const lines = text.split(/\r?\n/);
+  if (!lines.some((l) => DIGEST_DIVIDER_RE.test(l.trim()))) return null;
+
+  const blocks: string[] = [];
+  let cur: string[] = [];
+  for (const l of lines) {
+    if (DIGEST_DIVIDER_RE.test(l.trim())) {
+      if (cur.some((x) => x.trim())) blocks.push(cur.join("\n"));
+      cur = [];
+    } else {
+      cur.push(l);
+    }
+  }
+  if (cur.some((x) => x.trim())) blocks.push(cur.join("\n"));
+
+  const rows: ImportRow[] = [];
+  for (const block of blocks) {
+    const paragraphs = block.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+    const fieldLines = (paragraphs[0] ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+    if (fieldLines.length < 6) continue;
+    const [facility, date, timeOfDay, name, phone, email, ...noteLines] = fieldLines;
+    if (!DATE_ISO_RE.test(date) || !TIME_OF_DAY_RE.test(timeOfDay) || !PHONE_LINE_RE.test(phone)) continue;
+    const doctorLine = paragraphs[1]?.split("\n")[0]?.trim() ?? "";
+
+    rows.push({
+      name,
+      phone,
+      facility: clean(facility),
+      doctor: clean(doctorLine),
+      department: "",
+      email: email.includes("@") ? email : "",
+      note: noteLines.map(clean).filter(Boolean).join(" "),
+      leadType: "appointment",
+      wantDate: date,
+      preferredTime: timeOfDay,
+      urgent: false,
+      urgentReason: "",
+    });
+  }
+  return rows;
+}
 // "Sep 20, 2026" — a bare date line, as the site's admin tables render it
 // split across lines rather than one delimited row.
 const DATE_LINE_RE = /^[A-Za-z]{3,9}\s+\d{1,2},\s*\d{4}$/;
@@ -214,6 +269,9 @@ function isHeaderRow(line: string): boolean {
  * "Read" line switches to the inbox family — so pasting several tables
  * together (a full day's export) parses each with its own rule. */
 export function parsePastedLeads(text: string): ImportRow[] {
+  const digest = parseDigestBlocks(text);
+  if (digest) return digest.filter((r) => r.name && r.phone);
+
   const lines = text.split(/\r?\n/).map((l) => l.trim());
   const at = (i: number): string => lines[i] ?? "";
 
